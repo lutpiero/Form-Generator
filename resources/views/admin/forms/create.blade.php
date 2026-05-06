@@ -11,7 +11,7 @@
                 <h5 class="mb-0"><i class="bi bi-plus-circle"></i> Create New Form</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ route('admin.forms.store') }}">
+                <form method="POST" action="{{ route('admin.forms.store') }}" enctype="multipart/form-data">
                     @csrf
                     @include('admin.forms._form')
                     <div class="d-flex gap-2 mt-4">

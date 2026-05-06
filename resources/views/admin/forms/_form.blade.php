@@ -18,6 +18,24 @@
               placeholder="Message shown after successful submission">{{ old('success_message', $form->success_message ?? 'Thank you for your submission!') }}</textarea>
 </div>
 
+<div class="mb-3">
+    <label class="form-label fw-semibold">Form Header Image</label>
+    @if(isset($form) && $form->header_image)
+        <div class="mb-2">
+            <img src="{{ Storage::url($form->header_image) }}" alt="Current header image"
+                 class="img-fluid rounded" style="max-height: 200px; max-width: 100%; object-fit: cover;">
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" name="remove_header_image" id="remove_header_image" value="1">
+                <label class="form-check-label text-danger" for="remove_header_image">Remove current header image</label>
+            </div>
+        </div>
+    @endif
+    <input type="file" name="header_image" class="form-control @error('header_image') is-invalid @enderror"
+           accept="image/jpeg,image/png,image/gif,image/webp">
+    <div class="form-text">Accepted formats: JPG, PNG, GIF, WEBP. Max size: 2MB.</div>
+    @error('header_image')<div class="invalid-feedback">{{ $message }}</div>@enderror
+</div>
+
 <div class="row g-3">
     <div class="col-md-6">
         <div class="card bg-light border-0 p-3">
