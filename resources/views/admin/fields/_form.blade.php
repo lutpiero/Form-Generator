@@ -71,6 +71,9 @@
     fieldType.addEventListener('change', function() {
         updateFieldVisibility(this.value);
     });
+
+    // Initialize state on page load
+    updateFieldVisibility(fieldType.value);
 })();
 </script>
 @endpush
