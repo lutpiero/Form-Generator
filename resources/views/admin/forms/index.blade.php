@@ -34,7 +34,15 @@
                     <tbody>
                         @foreach($forms as $form)
                         <tr>
-                            <td><a href="{{ route('admin.forms.show', $form) }}" class="text-decoration-none fw-semibold">{{ $form->name }}</a></td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    @if($form->header_image)
+                                        <img src="{{ Storage::url($form->header_image) }}" alt=""
+                                             class="rounded" style="width:40px;height:40px;object-fit:cover;flex-shrink:0;">
+                                    @endif
+                                    <a href="{{ route('admin.forms.show', $form) }}" class="text-decoration-none fw-semibold">{{ $form->name }}</a>
+                                </div>
+                            </td>
                             <td><code>{{ $form->slug }}</code></td>
                             <td>
                                 @if($form->is_active)

@@ -4,6 +4,12 @@
 
 @section('content')
 <div class="form-card p-4 p-md-5">
+    @if($form->header_image)
+        <div class="mb-4 mx-n4 mx-md-n5 mt-n4 mt-md-n5">
+            <img src="{{ Storage::url($form->header_image) }}" alt="{{ $form->name }}"
+                 class="img-fluid w-100 rounded-top" style="max-height: 300px; object-fit: cover;">
+        </div>
+    @endif
     <h2 class="form-title mb-2">{{ $form->name }}</h2>
     @if($form->description)
         <p class="text-muted mb-4">{{ $form->description }}</p>
@@ -23,6 +29,15 @@
         @csrf
 
         @foreach($form->fields as $field)
+        @if($field->type === 'section')
+        <div class="my-4">
+            <hr>
+            <h5 class="fw-semibold mb-1">{{ $field->label }}</h5>
+            @if($field->placeholder)
+                <p class="text-muted small mb-0">{{ $field->placeholder }}</p>
+            @endif
+        </div>
+        @else
         <div class="mb-3">
             <label class="form-label fw-semibold">
                 {{ $field->label }}
@@ -87,6 +102,7 @@
                 <div class="invalid-feedback d-block">{{ $message }}</div>
             @enderror
         </div>
+        @endif
         @endforeach
 
         {{-- Honeypot --}}

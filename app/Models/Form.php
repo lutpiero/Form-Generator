@@ -18,6 +18,7 @@ class Form extends Model
         'captcha_enabled',
         'captcha_type',
         'success_message',
+        'header_image',
     ];
 
     protected $casts = [

@@ -54,6 +54,9 @@ class FormController extends Controller
         // Build validation rules from form fields
         $rules = [];
         foreach ($form->fields as $field) {
+            if ($field->type === 'section') {
+                continue;
+            }
             $fieldRules = [];
             if ($field->required) {
                 $fieldRules[] = 'required';
@@ -71,9 +74,12 @@ class FormController extends Controller
 
         $validated = $request->validate($rules);
 
-        // Filter only form field data
+        // Filter only form field data (exclude section fields)
         $data = [];
         foreach ($form->fields as $field) {
+            if ($field->type === 'section') {
+                continue;
+            }
             $data[$field->name] = $validated[$field->name] ?? null;
         }
 

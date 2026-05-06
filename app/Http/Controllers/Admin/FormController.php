@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Form;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class FormController extends Controller
@@ -29,6 +30,7 @@ class FormController extends Controller
             'captcha_enabled' => 'boolean',
             'captcha_type' => 'required|in:math,honeypot',
             'success_message' => 'nullable|string',
+            'header_image' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:2048',
         ]);
 
         $validated['is_active'] = $request->boolean('is_active', true);
@@ -40,6 +42,10 @@ class FormController extends Controller
         $count = 1;
         while (Form::where('slug', $validated['slug'])->exists()) {
             $validated['slug'] = $originalSlug . '-' . $count++;
+        }
+
+        if ($request->hasFile('header_image')) {
+            $validated['header_image'] = $request->file('header_image')->store('form-headers', 'public');
         }
 
         $form = Form::create($validated);
@@ -68,10 +74,28 @@ class FormController extends Controller
             'captcha_enabled' => 'boolean',
             'captcha_type' => 'required|in:math,honeypot',
             'success_message' => 'nullable|string',
+            'header_image' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:2048',
+            'remove_header_image' => 'nullable|boolean',
         ]);
 
         $validated['is_active'] = $request->boolean('is_active', false);
         $validated['captcha_enabled'] = $request->boolean('captcha_enabled', false);
+
+        if ($request->boolean('remove_header_image')) {
+            if ($form->header_image) {
+                Storage::disk('public')->delete($form->header_image);
+            }
+            $validated['header_image'] = null;
+        } elseif ($request->hasFile('header_image')) {
+            if ($form->header_image) {
+                Storage::disk('public')->delete($form->header_image);
+            }
+            $validated['header_image'] = $request->file('header_image')->store('form-headers', 'public');
+        } else {
+            unset($validated['header_image']);
+        }
+
+        unset($validated['remove_header_image']);
 
         $form->update($validated);
 
@@ -81,6 +105,9 @@ class FormController extends Controller
 
     public function destroy(Form $form)
     {
+        if ($form->header_image) {
+            Storage::disk('public')->delete($form->header_image);
+        }
         $form->delete();
         return redirect()->route('admin.forms.index')
             ->with('success', 'Form deleted successfully.');

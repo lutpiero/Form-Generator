@@ -19,7 +19,7 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,section',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
@@ -28,7 +28,7 @@ class FormFieldController extends Controller
 
         $validated['form_id'] = $form->id;
         $validated['name'] = Str::snake(Str::lower($validated['label']));
-        $validated['required'] = $request->boolean('required', false);
+        $validated['required'] = $validated['type'] === 'section' ? false : $request->boolean('required', false);
         $validated['order'] = $form->fields()->count();
 
         // Parse options for dropdown/radio/checkbox
@@ -54,7 +54,7 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,section',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
@@ -63,7 +63,7 @@ class FormFieldController extends Controller
         ]);
 
         $validated['name'] = Str::snake(Str::lower($validated['label']));
-        $validated['required'] = $request->boolean('required', false);
+        $validated['required'] = $validated['type'] === 'section' ? false : $request->boolean('required', false);
 
         // Parse options
         if (!empty($validated['options'])) {
