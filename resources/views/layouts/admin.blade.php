@@ -57,6 +57,11 @@
             <a href="{{ route('admin.forms.index') }}" class="nav-link {{ request()->routeIs('admin.forms.*') ? 'active' : '' }}">
                 <i class="bi bi-file-earmark-text"></i> Forms
             </a>
+            @if(auth()->user()?->isAdmin())
+            <a href="{{ route('admin.users.index') }}" class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                <i class="bi bi-people"></i> Users
+            </a>
+            @endif
         </nav>
         <div class="mt-auto p-3 position-fixed bottom-0" style="width: inherit; max-width: 200px;">
             <div class="text-white-50 small mb-2">{{ auth()->user()->name ?? 'Admin' }}</div>
