@@ -1,2 +1,16 @@
 node_modules/
 vendor/
+.env
+.env.backup
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+npm-debug.log
+yarn-error.log
+/.idea
+/.vscode
+storage/framework/cache/data/
+storage/logs/*.log
+database/database.sqlite
+bootstrap/cache/*.php
