@@ -1,7 +1,6 @@
 @extends('layouts.public')
-@php
-    $formFieldClass = \App\Models\FormField::class;
-@endphp
+@php use App\Models\FormField; @endphp
+
 @section('title', $form->name)
 
 @section('content')
@@ -44,6 +43,7 @@
         @else
         @php
             $fieldError = $errors->first($field->name);
+            $otherFieldError = $field->type === 'checkbox' ? $errors->first($field->other_input_name) : null;
         @endphp
         <div class="mb-3 form-field" data-field-type="{{ $field->type }}" data-field-name="{{ $field->name }}" data-label="{{ $field->label }}" data-required="{{ $field->required ? 'true' : 'false' }}">
             <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox'])) for="{{ $field->name }}" @endif>
@@ -81,13 +81,12 @@
                     @break
                 @case('checkbox')
                     @php
-                        $otherFieldError = $errors->first($field->other_input_name);
                         $oldCheckboxValues = collect((array) old($field->name, []));
                         $oldOtherValue = old($field->other_input_name);
 
                         if (!$oldOtherValue) {
-                            $storedOtherValue = $oldCheckboxValues->first(fn ($value) => $formFieldClass::isOtherResponse($value));
-                            $oldOtherValue = $storedOtherValue !== null ? $formFieldClass::extractOtherResponse($storedOtherValue) : '';
+                            $storedOtherValue = $oldCheckboxValues->first(fn ($value) => FormField::isOtherResponse($value));
+                            $oldOtherValue = FormField::extractOtherResponse($storedOtherValue);
                         }
                     @endphp
                     @foreach($field->selectable_options as $option)
@@ -101,12 +100,12 @@
                     @endforeach
                     @if($field->hasOtherOption())
                         @php
-                            $otherChecked = $oldCheckboxValues->contains($formFieldClass::OTHER_OPTION_VALUE)
-                                || $oldCheckboxValues->contains(fn ($value) => $formFieldClass::isOtherResponse($value));
+                            $otherChecked = $oldCheckboxValues->contains(FormField::OTHER_OPTION_VALUE)
+                                || $oldCheckboxValues->contains(fn ($value) => FormField::isOtherResponse($value));
                         @endphp
                         <div class="form-check" data-other-option>
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="checkbox"
-                                    name="{{ $field->name }}[]" value="{{ $formFieldClass::OTHER_OPTION_VALUE }}"
+                                   name="{{ $field->name }}[]" value="{{ FormField::OTHER_OPTION_VALUE }}"
                                    id="{{ $field->name }}_other"
                                    data-other-toggle
                                    data-other-input="#{{ $field->other_input_name }}"
@@ -128,7 +127,7 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
-                         pattern="{{ $formFieldClass::PHONE_HTML_PATTERN }}"
+                        pattern="{{ App\Models\FormField::PHONE_PATTERN }}"
                         inputmode="tel"
                         {{ $field->required ? 'required' : '' }}>
                     @break

@@ -1,4 +1,5 @@
 @extends('layouts.admin')
+@php use App\Models\FormField; @endphp
 
 @section('title', 'Submission #' . $submission->id)
 @section('page-title', 'Submission #' . $submission->id)
@@ -29,8 +30,10 @@
                             <td class="fw-semibold">{{ $field->label }}</td>
                             <td>
                                 @php $val = $submission->data[$field->name] ?? null; @endphp
-                                @if($field->type === 'table')
-                                    @include('admin.submissions.partials.table-value', ['field' => $field, 'value' => $val])
+                                @if(is_array($val))
+                                    {{ collect($val)->map(fn ($item) => FormField::displaySubmissionValue($item))->implode(', ') }}
+                                @elseif($val)
+                                    {{ $val }}
                                 @else
                                     {{ $field->formatSubmissionValue($val) }}
                                 @endif

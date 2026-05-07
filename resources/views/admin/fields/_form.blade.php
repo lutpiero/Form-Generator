@@ -45,6 +45,15 @@
     <div class="form-text">Adds an <strong>Other</strong> option with a free-text answer on the public form.</div>
 </div>
 
+<div class="mb-3" id="customAnswerGroup" style="{{ old('type', $field->type ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="allow_custom_answer" id="allow_custom_answer" value="1"
+            {{ old('allow_custom_answer', isset($field) ? $field->hasOtherOption() : false) ? 'checked' : '' }}>
+        <label class="form-check-label fw-semibold" for="allow_custom_answer">Allow custom answer</label>
+    </div>
+    <div class="form-text">Adds an <strong>Other</strong> option with a free-text answer on the public form.</div>
+</div>
+
 <div id="tableConfigGroup" class="border rounded p-3 bg-light-subtle mb-3" style="{{ $selectedType === 'table' ? '' : 'display:none' }}">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
@@ -276,9 +285,7 @@
 
         optionsGroup.style.display = showOptions ? '' : 'none';
         customAnswerGroup.style.display = isCheckbox ? '' : 'none';
-        inputOnlyFields.style.display = (isSection || isTable) ? 'none' : '';
-        tableConfigGroup.style.display = isTable ? '' : 'none';
-        placeholderGroup.style.display = isTable ? 'none' : '';
+        inputOnlyFields.style.display = isSection ? 'none' : '';
 
         if (isSection) {
             labelText.innerHTML = 'Section Title <span class="text-danger">*</span>';

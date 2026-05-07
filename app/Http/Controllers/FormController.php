@@ -58,18 +58,8 @@ class FormController extends Controller
             if ($field->type === 'section') {
                 continue;
             }
-
-            if ($field->type === 'table') {
-                foreach ($field->table_columns as $column) {
-                    if (($column['type'] ?? null) === 'phone') {
-                        $messages["table_fields.{$field->id}.*.{$column['key']}.regex"] = 'Please enter a valid phone number.';
-                    }
-                }
-                $rules = array_merge($rules, $this->buildTableFieldRules($field));
-                continue;
-            }
-
             $attributes[$field->name] = $field->label;
+
             $fieldRules = [$field->required ? 'required' : 'nullable'];
 
             switch ($field->type) {
@@ -77,7 +67,7 @@ class FormController extends Controller
                     $fieldRules[] = 'email';
                     break;
                 case 'phone':
-                    $fieldRules[] = 'regex:/'.FormField::PHONE_REGEX_PATTERN.'/';
+                    $fieldRules[] = 'regex:/' . FormField::PHONE_PATTERN . '/';
                     $messages["{$field->name}.regex"] = 'Please enter a valid phone number.';
                     break;
                 case 'number':
@@ -119,12 +109,6 @@ class FormController extends Controller
         $data = [];
         foreach ($form->fields as $field) {
             if ($field->type === 'section') {
-                continue;
-            }
-
-            if ($field->type === 'table') {
-                $tableRows = data_get($validated, "table_fields.{$field->id}", []);
-                $data[$field->name] = $this->normalizeTableRows($field, $tableRows);
                 continue;
             }
 
