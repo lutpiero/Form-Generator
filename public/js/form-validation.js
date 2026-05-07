@@ -93,16 +93,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (value !== '') {
                 if (type === 'email') {
-                    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-                    if (!emailPattern.test(value)) {
+                    if (primaryControl.validity.typeMismatch) {
                         setGroupValidity(group, false, 'Please enter a valid email address.');
                         return false;
                     }
                 }
 
                 if (type === 'phone') {
-                    const phonePattern = /^[0-9+\s-]+$/;
+                    const phonePattern = new RegExp(primaryControl.pattern);
 
                     if (!phonePattern.test(value)) {
                         setGroupValidity(group, false, 'Please enter a valid phone number.');

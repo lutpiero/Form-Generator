@@ -23,7 +23,7 @@
 <div class="mb-3" id="customAnswerGroup" style="{{ old('type', $field->type ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
     <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" name="allow_custom_answer" id="allow_custom_answer" value="1"
-            {{ old('allow_custom_answer', isset($field) && $field->hasOtherOption() ? '1' : '0') == '1' ? 'checked' : '' }}>
+            {{ old('allow_custom_answer', isset($field) ? $field->hasOtherOption() : false) ? 'checked' : '' }}>
         <label class="form-check-label fw-semibold" for="allow_custom_answer">Allow custom answer</label>
     </div>
     <div class="form-text">Adds an <strong>Other</strong> option with a free-text answer on the public form.</div>

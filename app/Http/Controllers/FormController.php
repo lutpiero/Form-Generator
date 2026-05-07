@@ -71,7 +71,7 @@ class FormController extends Controller
                     $fieldRules[] = 'email';
                     break;
                 case 'phone':
-                    $fieldRules[] = 'regex:/^[0-9+\s\-]+$/';
+                    $fieldRules[] = 'regex:/' . FormField::PHONE_PATTERN . '/';
                     $messages["{$field->name}.regex"] = 'Please enter a valid phone number.';
                     break;
                 case 'number':
@@ -98,11 +98,9 @@ class FormController extends Controller
                             $otherChecked ? 'required' : 'nullable',
                             'string',
                             'max:255',
-                            'not_regex:/^\s*$/',
                         ];
                         $attributes[$otherFieldName] = 'Other';
                         $messages["{$otherFieldName}.required"] = 'Please enter a value for Other.';
-                        $messages["{$otherFieldName}.not_regex"] = 'Please enter a value for Other.';
                     }
                     break;
             }
@@ -122,12 +120,15 @@ class FormController extends Controller
             $value = $validated[$field->name] ?? null;
 
             if ($field->type === 'checkbox') {
-                $value = array_values(array_filter((array) $value, fn (?string $item) => filled($item)));
+                $value = array_values(array_filter(
+                    (array) $value,
+                    fn ($item) => $item !== null && $item !== ''
+                ));
 
                 if ($field->hasOtherOption() && in_array(FormField::OTHER_OPTION_VALUE, $value, true)) {
                     $otherValue = trim((string) ($validated[$field->other_input_name] ?? ''));
                     $value = array_map(
-                        fn (string $item) => $item === FormField::OTHER_OPTION_VALUE ? 'other:' . $otherValue : $item,
+                        fn ($item) => $item === FormField::OTHER_OPTION_VALUE ? FormField::formatOtherResponse($otherValue) : $item,
                         $value
                     );
                 }

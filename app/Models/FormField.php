@@ -10,6 +10,8 @@ class FormField extends Model
     use HasFactory;
 
     public const OTHER_OPTION_VALUE = '__other__';
+    public const OTHER_PREFIX = 'other:';
+    public const PHONE_PATTERN = '^[0-9+\s\-]+$';
 
     protected $fillable = [
         'form_id',
@@ -51,12 +53,36 @@ class FormField extends Model
     {
         return array_values(array_filter(
             $this->options_array,
-            fn (string $option) => $option !== self::OTHER_OPTION_VALUE
+            fn ($option) => $option !== self::OTHER_OPTION_VALUE
         ));
     }
 
     public function getOtherInputNameAttribute(): string
     {
         return "{$this->name}_other";
+    }
+
+    public static function isOtherResponse(mixed $value): bool
+    {
+        return is_string($value) && str_starts_with($value, self::OTHER_PREFIX);
+    }
+
+    public static function formatOtherResponse(string $value): string
+    {
+        return self::OTHER_PREFIX . $value;
+    }
+
+    public static function extractOtherResponse(mixed $value): string
+    {
+        return self::isOtherResponse($value)
+            ? substr($value, strlen(self::OTHER_PREFIX))
+            : '';
+    }
+
+    public static function displaySubmissionValue(mixed $value): string
+    {
+        return self::isOtherResponse($value)
+            ? 'Other: ' . self::extractOtherResponse($value)
+            : (string) $value;
     }
 }

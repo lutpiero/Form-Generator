@@ -97,6 +97,10 @@ class FormFieldController extends Controller
         }
 
         $optionsArray = array_values(array_filter(array_map('trim', explode("\n", (string) $options))));
+        $optionsArray = array_values(array_filter(
+            $optionsArray,
+            fn ($option) => $option !== FormField::OTHER_OPTION_VALUE
+        ));
 
         if ($type === 'checkbox' && $request->boolean('allow_custom_answer', false)) {
             $optionsArray[] = FormField::OTHER_OPTION_VALUE;

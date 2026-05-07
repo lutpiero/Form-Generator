@@ -9,7 +9,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class FormCheckboxOtherTest extends TestCase
+class PublicFormValidationTest extends TestCase
 {
     use RefreshDatabase;
 

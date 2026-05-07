@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Form;
+use App\Models\FormField;
 use App\Models\FormSubmission;
 use Illuminate\Http\Request;
 
@@ -72,7 +73,7 @@ class SubmissionController extends Controller
     {
         if (is_array($value)) {
             return implode(', ', array_map(
-                fn (string $item) => str_starts_with($item, 'other:') ? 'Other: ' . substr($item, 6) : $item,
+                fn ($item) => FormField::displaySubmissionValue($item),
                 $value
             ));
         }
