@@ -166,7 +166,7 @@ class FormController extends Controller
         return view('public.forms.success', compact('form'));
     }
 
-    private function buildTableFieldRules(FormField $field): array
+    protected function buildTableFieldRules(FormField $field): array
     {
         $rules = [
             "table_fields.{$field->id}" => ['required', 'array', 'min:1'],
@@ -214,7 +214,7 @@ class FormController extends Controller
         return $rules;
     }
 
-    private function normalizeTableRows(FormField $field, array $rows): array
+    protected function normalizeTableRows(FormField $field, array $rows): array
     {
         $normalizedRows = [];
 
