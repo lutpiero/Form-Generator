@@ -187,7 +187,7 @@
     var addTableColumnButton = document.getElementById('addTableColumn');
     var tableColumnTemplate = document.getElementById('tableColumnTemplate');
 
-    function slugify(value) {
+    function toSnakeCase(value) {
         return value
             .toLowerCase()
             .trim()
@@ -219,7 +219,7 @@
         var labelInput = columnItem.querySelector('[data-column-label]');
         var keyInput = columnItem.querySelector('[data-column-key]');
         var keyPreview = columnItem.querySelector('[data-column-key-preview]');
-        var generatedKey = slugify(labelInput ? labelInput.value : '');
+        var generatedKey = toSnakeCase(labelInput ? labelInput.value : '');
 
         if (keyInput && !keyInput.value) {
             keyInput.value = generatedKey;
@@ -324,8 +324,8 @@
 
             if (event.target.matches('[data-column-label]')) {
                 var keyInput = columnItem.querySelector('[data-column-key]');
-                if (keyInput && (!keyInput.value || keyInput.value === slugify(keyInput.dataset.previousLabel || ''))) {
-                    keyInput.value = slugify(event.target.value);
+                if (keyInput && (!keyInput.value || keyInput.value === toSnakeCase(keyInput.dataset.previousLabel || ''))) {
+                    keyInput.value = toSnakeCase(event.target.value);
                 }
                 keyInput.dataset.previousLabel = event.target.value;
             }

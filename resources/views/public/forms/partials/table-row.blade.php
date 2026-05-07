@@ -41,17 +41,17 @@
                 @case('radio')
                     <div class="d-flex flex-column gap-1">
                         @foreach($column['options'] ?? [] as $optionIndex => $option)
-                            @php $radioId = "{$field->id}_{$rowIndex}_{$columnKey}_{$optionIndex}"; @endphp
+                            @php $radioInputId = "{$field->id}_{$rowIndex}_{$columnKey}_{$optionIndex}"; @endphp
                             <div class="form-check">
                                 <input
                                     class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
                                     type="radio"
                                     name="{{ $baseName }}[{{ $columnKey }}]"
                                     value="{{ $option }}"
-                                    id="{{ $radioId }}"
+                                    id="{{ $radioInputId }}"
                                     {{ $columnValue === $option ? 'checked' : '' }}
                                 >
-                                <label class="form-check-label small" for="{{ $radioId }}">{{ $option }}</label>
+                                <label class="form-check-label small" for="{{ $radioInputId }}">{{ $option }}</label>
                             </div>
                         @endforeach
                     </div>
@@ -60,17 +60,17 @@
                 @case('checkbox')
                     <div class="d-flex flex-column gap-1">
                         @foreach($column['options'] ?? [] as $optionIndex => $option)
-                            @php $checkboxId = "{$field->id}_{$rowIndex}_{$columnKey}_{$optionIndex}"; @endphp
+                            @php $checkboxInputId = "{$field->id}_{$rowIndex}_{$columnKey}_{$optionIndex}"; @endphp
                             <div class="form-check">
                                 <input
                                     class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
                                     type="checkbox"
                                     name="{{ $baseName }}[{{ $columnKey }}][]"
                                     value="{{ $option }}"
-                                    id="{{ $checkboxId }}"
+                                    id="{{ $checkboxInputId }}"
                                     {{ in_array($option, (array) $columnValue, true) ? 'checked' : '' }}
                                 >
-                                <label class="form-check-label small" for="{{ $checkboxId }}">{{ $option }}</label>
+                                <label class="form-check-label small" for="{{ $checkboxInputId }}">{{ $option }}</label>
                             </div>
                         @endforeach
                     </div>
