@@ -53,4 +53,47 @@ class FormField extends Model
     {
         return (bool) ($this->config['auto_number'] ?? false);
     }
+
+    public function formatSubmissionValue(mixed $value, bool $blankForEmpty = false): string
+    {
+        if ($this->type === 'table') {
+            if (!is_array($value) || $value === []) {
+                return $blankForEmpty ? '' : '-';
+            }
+
+            $formatted = collect($value)->values()->map(function ($row, $index) {
+                $parts = collect($this->table_columns)->map(function ($column) use ($row) {
+                    $columnValue = $row[$column['key']] ?? null;
+
+                    if (is_array($columnValue)) {
+                        $columnValue = implode(', ', $columnValue);
+                    }
+
+                    if ($columnValue === null || $columnValue === '') {
+                        return null;
+                    }
+
+                    return "{$column['label']}: {$columnValue}";
+                })->filter()->implode('; ');
+
+                return $parts === '' ? null : 'Row '.($index + 1).': '.$parts;
+            })->filter()->implode(' | ');
+
+            if ($formatted !== '') {
+                return $formatted;
+            }
+
+            return $blankForEmpty ? '' : '-';
+        }
+
+        if (is_array($value)) {
+            $value = implode(', ', $value);
+        }
+
+        if ($value === null || $value === '') {
+            return $blankForEmpty ? '' : '-';
+        }
+
+        return (string) $value;
+    }
 }

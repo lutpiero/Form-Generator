@@ -48,30 +48,7 @@
                             @foreach($form->fields as $field)
                                 <td>
                                     @php $val = $submission->data[$field->name] ?? '-'; @endphp
-                                    @if($field->type === 'table')
-                                        @php
-                                            $tableSummary = collect(is_array($val) ? $val : [])->values()->map(function ($row, $index) use ($field) {
-                                                $parts = collect($field->table_columns)->map(function ($column) use ($row) {
-                                                    $columnValue = $row[$column['key']] ?? null;
-
-                                                    if (is_array($columnValue)) {
-                                                        $columnValue = implode(', ', $columnValue);
-                                                    }
-
-                                                    if ($columnValue === null || $columnValue === '') {
-                                                        return null;
-                                                    }
-
-                                                    return $column['label'].': '.$columnValue;
-                                                })->filter()->implode('; ');
-
-                                                return $parts === '' ? null : 'Row '.($index + 1).': '.$parts;
-                                            })->filter()->implode(' | ');
-                                        @endphp
-                                        {{ $tableSummary !== '' ? $tableSummary : '-' }}
-                                    @else
-                                        {{ is_array($val) ? implode(', ', $val) : $val }}
-                                    @endif
+                                    {{ $field->formatSubmissionValue($val) }}
                                 </td>
                             @endforeach
                             <td class="text-muted small">{{ $submission->ip_address }}</td>

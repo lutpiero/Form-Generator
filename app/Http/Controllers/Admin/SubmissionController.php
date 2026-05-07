@@ -56,7 +56,7 @@ class SubmissionController extends Controller
                 ];
                 foreach ($fields as $field) {
                     $value = $submission->data[$field->name] ?? '';
-                    $row[] = $this->formatFieldValueForExport($field, $value);
+                    $row[] = $field->formatSubmissionValue($value, true);
                 }
                 fputcsv($file, $row);
             }
@@ -65,45 +65,5 @@ class SubmissionController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
-    }
-
-    public function formatFieldValueForList($field, mixed $value): string
-    {
-        if ($field->type === 'table') {
-            if (!is_array($value) || $value === []) {
-                return '-';
-            }
-
-            return collect($value)->values()->map(function ($row, $index) use ($field) {
-                $parts = collect($field->table_columns)->map(function ($column) use ($row) {
-                    $columnValue = $row[$column['key']] ?? null;
-
-                    if (is_array($columnValue)) {
-                        $columnValue = implode(', ', $columnValue);
-                    }
-
-                    if ($columnValue === null || $columnValue === '') {
-                        return null;
-                    }
-
-                    return "{$column['label']}: {$columnValue}";
-                })->filter()->implode('; ');
-
-                return $parts === '' ? null : 'Row '.($index + 1).': '.$parts;
-            })->filter()->implode(' | ');
-        }
-
-        if (is_array($value)) {
-            return implode(', ', $value);
-        }
-
-        return (string) ($value ?? '-');
-    }
-
-    protected function formatFieldValueForExport($field, mixed $value): string
-    {
-        $formatted = $this->formatFieldValueForList($field, $value);
-
-        return $formatted === '-' ? '' : $formatted;
     }
 }

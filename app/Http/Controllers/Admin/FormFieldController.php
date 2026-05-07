@@ -139,7 +139,7 @@ class FormFieldController extends Controller
             }
 
             $baseKey = Str::snake(Str::lower($column['key'] ?? $label));
-            $baseKey = $baseKey !== '' ? $baseKey : 'column';
+            $baseKey = $baseKey !== '' ? $baseKey : 'field';
             $key = $baseKey;
             $suffix = 2;
 
