@@ -38,6 +38,8 @@
                 <p class="text-muted small mb-0">{{ $field->placeholder }}</p>
             @endif
         </div>
+        @elseif($field->type === 'table')
+            @include('public.forms.partials.table-field', ['field' => $field])
         @else
         @php
             $fieldError = $errors->first($field->name);
@@ -176,3 +178,145 @@
 </div>
 <script src="{{ asset('js/form-validation.js') }}" defer></script>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    function updateTableState(tableWrapper) {
+        var rows = Array.from(tableWrapper.querySelectorAll('[data-table-row]'));
+        rows.forEach(function (row, index) {
+            var numberCell = row.querySelector('[data-table-row-number]');
+            if (numberCell) {
+                numberCell.textContent = index + 1;
+            }
+
+            var removeButton = row.querySelector('.js-table-remove-row');
+            if (removeButton) {
+                removeButton.disabled = rows.length === 1;
+            }
+        });
+    }
+
+    function clearCellValidation(cell) {
+        cell.classList.remove('table-cell-invalid');
+
+        var feedback = cell.querySelector('[data-table-error]');
+        if (feedback) {
+            feedback.textContent = '';
+            feedback.classList.add('d-none');
+        }
+
+        cell.querySelectorAll('.is-invalid').forEach(function (element) {
+            element.classList.remove('is-invalid');
+        });
+    }
+
+    function markCellInvalid(cell, message) {
+        cell.classList.add('table-cell-invalid');
+        cell.querySelectorAll('input, select, textarea').forEach(function (element) {
+            element.classList.add('is-invalid');
+        });
+
+        var feedback = cell.querySelector('[data-table-error]');
+        if (feedback) {
+            feedback.textContent = message;
+            feedback.classList.remove('d-none');
+        }
+    }
+
+    function cellHasValue(cell, type) {
+        var inputs = cell.querySelectorAll('input, select, textarea');
+
+        if (type === 'checkbox') {
+            return Array.from(inputs).some(function (input) {
+                return input.type === 'checkbox' && input.checked;
+            });
+        }
+
+        if (type === 'radio') {
+            return Array.from(inputs).some(function (input) {
+                return input.type === 'radio' && input.checked;
+            });
+        }
+
+        return Array.from(inputs).some(function (input) {
+            return input.type !== 'hidden' && String(input.value || '').trim() !== '';
+        });
+    }
+
+    function validateRepeatableTables(form) {
+        var valid = true;
+
+        form.querySelectorAll('[data-repeatable-table]').forEach(function (tableWrapper) {
+            var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
+            var tableValid = true;
+
+            tableWrapper.querySelectorAll('[data-table-row]').forEach(function (row) {
+                row.querySelectorAll('td[data-required="1"]').forEach(function (cell) {
+                    clearCellValidation(cell);
+
+                    if (!cellHasValue(cell, cell.dataset.columnType)) {
+                        tableValid = false;
+                        valid = false;
+                        markCellInvalid(cell, 'This field is required.');
+                    }
+                });
+            });
+
+            if (summaryError) {
+                summaryError.classList.toggle('d-none', tableValid);
+            }
+        });
+
+        return valid;
+    }
+
+    document.querySelectorAll('[data-repeatable-table]').forEach(function (tableWrapper) {
+        var tbody = tableWrapper.querySelector('[data-table-body]');
+        var template = tableWrapper.querySelector('[data-table-row-template]');
+
+        updateTableState(tableWrapper);
+
+        tableWrapper.addEventListener('click', function (event) {
+            var addButton = event.target.closest('.js-table-add-row');
+            if (addButton && template && tbody) {
+                var nextIndex = tbody.querySelectorAll('[data-table-row]').length;
+                var html = template.innerHTML.replace(/__INDEX__/g, nextIndex);
+                tbody.insertAdjacentHTML('beforeend', html);
+                updateTableState(tableWrapper);
+                return;
+            }
+
+            var removeButton = event.target.closest('.js-table-remove-row');
+            if (removeButton) {
+                var row = removeButton.closest('[data-table-row]');
+                if (row && tbody.querySelectorAll('[data-table-row]').length > 1) {
+                    row.remove();
+                    updateTableState(tableWrapper);
+                }
+            }
+        });
+
+        tableWrapper.addEventListener('change', function (event) {
+            var cell = event.target.closest('td[data-required="1"]');
+            if (cell) {
+                clearCellValidation(cell);
+                var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
+                if (summaryError) {
+                    summaryError.classList.add('d-none');
+                }
+            }
+        });
+    });
+
+    var form = document.querySelector('.form-card form');
+    if (form) {
+        form.addEventListener('submit', function (event) {
+            if (!validateRepeatableTables(form)) {
+                event.preventDefault();
+            }
+        });
+    }
+})();
+</script>
+@endpush

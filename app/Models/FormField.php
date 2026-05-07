@@ -19,6 +19,7 @@ class FormField extends Model
         'name',
         'type',
         'options',
+        'config',
         'required',
         'placeholder',
         'default_value',
@@ -26,6 +27,7 @@ class FormField extends Model
     ];
 
     protected $casts = [
+        'config' => 'array',
         'required' => 'boolean',
         'order' => 'integer',
     ];
@@ -40,7 +42,9 @@ class FormField extends Model
         if (!$this->options) {
             return [];
         }
+
         $decoded = json_decode($this->options, true);
+
         return is_array($decoded) ? $decoded : [];
     }
 

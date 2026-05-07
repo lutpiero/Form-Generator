@@ -16,7 +16,6 @@ class FormController extends Controller
             abort(404);
         }
 
-        // Generate math captcha if enabled
         $captcha = null;
         if ($form->captcha_enabled && $form->captcha_type === 'math') {
             $a = rand(1, 10);
@@ -34,7 +33,6 @@ class FormController extends Controller
             abort(404);
         }
 
-        // Honeypot check
         if ($form->captcha_enabled && $form->captcha_type === 'honeypot') {
             if ($request->filled('_honeypot')) {
                 return redirect()->route('forms.success', $form)
@@ -42,7 +40,6 @@ class FormController extends Controller
             }
         }
 
-        // Math captcha check
         if ($form->captcha_enabled && $form->captcha_type === 'math') {
             $answer = (int) $request->input('captcha_answer');
             $expected = session('captcha_answer');
@@ -53,7 +50,6 @@ class FormController extends Controller
             }
         }
 
-        // Build validation rules from form fields
         $rules = [];
         $messages = [];
         $attributes = [];
@@ -110,7 +106,6 @@ class FormController extends Controller
 
         $validated = $request->validate($rules, $messages, $attributes);
 
-        // Filter only form field data (exclude section fields)
         $data = [];
         foreach ($form->fields as $field) {
             if ($field->type === 'section') {
@@ -144,7 +139,6 @@ class FormController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
-        // Clear captcha session
         session()->forget(['captcha_answer', 'captcha_form']);
 
         return redirect()->route('forms.success', $form)
@@ -154,5 +148,84 @@ class FormController extends Controller
     public function success(Form $form)
     {
         return view('public.forms.success', compact('form'));
+    }
+
+    protected function buildTableFieldRules(FormField $field): array
+    {
+        $rules = [
+            "table_fields.{$field->id}" => ['required', 'array', 'min:1'],
+        ];
+
+        foreach ($field->table_columns as $column) {
+            $key = $column['key'];
+            $columnRules = ($column['required'] ?? false) ? ['required'] : ['nullable'];
+
+            switch ($column['type']) {
+                case 'email':
+                    $columnRules[] = 'string';
+                    $columnRules[] = 'email';
+                    break;
+                case 'phone':
+                    $columnRules[] = 'regex:/'.FormField::PHONE_REGEX_PATTERN.'/';
+                    break;
+                case 'number':
+                    $columnRules[] = 'numeric';
+                    break;
+                case 'dropdown':
+                case 'radio':
+                    $columnRules[] = 'string';
+                    if (!empty($column['options'])) {
+                        $columnRules[] = Rule::in($column['options']);
+                    }
+                    break;
+                case 'checkbox':
+                    $columnRules[] = 'array';
+                    if ($column['required'] ?? false) {
+                        $columnRules[] = 'min:1';
+                    }
+                    if (!empty($column['options'])) {
+                        $rules["table_fields.{$field->id}.*.{$key}.*"] = [Rule::in($column['options'])];
+                    }
+                    break;
+                default:
+                    $columnRules[] = 'string';
+                    break;
+            }
+
+            $rules["table_fields.{$field->id}.*.{$key}"] = $columnRules;
+        }
+
+        return $rules;
+    }
+
+    protected function normalizeTableRows(FormField $field, array $rows): array
+    {
+        $normalizedRows = [];
+
+        foreach ($rows as $row) {
+            $normalizedRow = [];
+            $hasValue = false;
+
+            foreach ($field->table_columns as $column) {
+                $key = $column['key'];
+                $value = $row[$key] ?? null;
+
+                if ($column['type'] === 'checkbox') {
+                    $value = array_values(array_filter((array) $value, fn ($item) => $item !== null && $item !== ''));
+                    $hasValue = $hasValue || $value !== [];
+                } else {
+                    $value = is_string($value) ? trim($value) : $value;
+                    $hasValue = $hasValue || !in_array($value, [null, ''], true);
+                }
+
+                $normalizedRow[$key] = $value;
+            }
+
+            if ($hasValue) {
+                $normalizedRows[] = $normalizedRow;
+            }
+        }
+
+        return $normalizedRows;
     }
 }

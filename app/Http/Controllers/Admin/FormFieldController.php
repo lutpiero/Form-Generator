@@ -7,6 +7,7 @@ use App\Models\Form;
 use App\Models\FormField;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class FormFieldController extends Controller
 {
@@ -29,7 +30,6 @@ class FormFieldController extends Controller
 
         $validated['form_id'] = $form->id;
         $validated['name'] = Str::snake(Str::lower($validated['label']));
-        $validated['required'] = $validated['type'] === 'section' ? false : $request->boolean('required', false);
         $validated['order'] = $form->fields()->count();
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
         unset($validated['allow_custom_answer']);
@@ -72,6 +72,7 @@ class FormFieldController extends Controller
     public function destroy(Form $form, FormField $field)
     {
         $field->delete();
+
         return redirect()->route('admin.forms.show', $form)
             ->with('success', 'Field deleted successfully.');
     }

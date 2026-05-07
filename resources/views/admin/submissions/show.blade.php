@@ -35,7 +35,7 @@
                                 @elseif($val)
                                     {{ $val }}
                                 @else
-                                    <span class="text-muted">—</span>
+                                    {{ $field->formatSubmissionValue($val) }}
                                 @endif
                             </td>
                         </tr>

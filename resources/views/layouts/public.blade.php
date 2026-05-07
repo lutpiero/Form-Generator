@@ -13,16 +13,19 @@
         .form-title { color: #764ba2; font-weight: 700; }
         .btn-submit { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; padding: 0.75rem 2rem; font-size: 1rem; }
         .btn-submit:hover { opacity: 0.9; }
+        .table-cell-invalid { background-color: rgba(220, 53, 69, 0.08); }
     </style>
+    @stack('styles')
 </head>
 <body>
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
+        <div class="{{ trim($__env->yieldContent('container-width', 'col-12 col-xl-10')) }}">
             @yield('content')
         </div>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+@stack('scripts')
 </body>
 </html>
