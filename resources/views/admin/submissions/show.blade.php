@@ -29,7 +29,9 @@
                             <td class="fw-semibold">{{ $field->label }}</td>
                             <td>
                                 @php $val = $submission->data[$field->name] ?? null; @endphp
-                                @if(is_array($val))
+                                @if($field->type === 'table')
+                                    @include('admin.submissions.partials.table-value', ['field' => $field, 'value' => $val])
+                                @elseif(is_array($val))
                                     {{ implode(', ', $val) }}
                                 @elseif($val)
                                     {{ $val }}

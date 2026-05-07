@@ -15,6 +15,7 @@ class FormField extends Model
         'name',
         'type',
         'options',
+        'config',
         'required',
         'placeholder',
         'default_value',
@@ -22,6 +23,7 @@ class FormField extends Model
     ];
 
     protected $casts = [
+        'config' => 'array',
         'required' => 'boolean',
         'order' => 'integer',
     ];
@@ -38,5 +40,17 @@ class FormField extends Model
         }
         $decoded = json_decode($this->options, true);
         return is_array($decoded) ? $decoded : [];
+    }
+
+    public function getTableColumnsAttribute(): array
+    {
+        $columns = $this->config['columns'] ?? [];
+
+        return is_array($columns) ? $columns : [];
+    }
+
+    public function getTableAutoNumberAttribute(): bool
+    {
+        return (bool) ($this->config['auto_number'] ?? false);
     }
 }
