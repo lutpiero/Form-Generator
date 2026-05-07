@@ -43,7 +43,6 @@
         @else
         @php
             $fieldError = $errors->first($field->name);
-            $otherFieldError = $field->type === 'checkbox' ? $errors->first($field->other_input_name) : null;
         @endphp
         <div class="mb-3 form-field" data-field-type="{{ $field->type }}" data-field-name="{{ $field->name }}" data-label="{{ $field->label }}" data-required="{{ $field->required ? 'true' : 'false' }}">
             <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox'])) for="{{ $field->name }}" @endif>
@@ -81,6 +80,7 @@
                     @break
                 @case('checkbox')
                     @php
+                        $otherFieldError = $errors->first($field->other_input_name);
                         $oldCheckboxValues = collect((array) old($field->name, []));
                         $oldOtherValue = old($field->other_input_name);
 
