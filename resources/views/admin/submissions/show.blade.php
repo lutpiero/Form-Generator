@@ -1,4 +1,5 @@
 @extends('layouts.admin')
+@php use App\Models\FormField; @endphp
 
 @section('title', 'Submission #' . $submission->id)
 @section('page-title', 'Submission #' . $submission->id)
@@ -30,7 +31,7 @@
                             <td>
                                 @php $val = $submission->data[$field->name] ?? null; @endphp
                                 @if(is_array($val))
-                                    {{ implode(', ', $val) }}
+                                    {{ collect($val)->map(fn ($item) => FormField::displaySubmissionValue($item))->implode(', ') }}
                                 @elseif($val)
                                     {{ $val }}
                                 @else

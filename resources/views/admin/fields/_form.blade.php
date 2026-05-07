@@ -17,7 +17,16 @@
 
 <div class="mb-3" id="optionsGroup" style="{{ in_array(old('type', $field->type ?? 'text'), ['dropdown','radio','checkbox']) ? '' : 'display:none' }}">
     <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
-    <textarea name="options" class="form-control" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3">{{ old('options', isset($field) ? implode("\n", $field->options_array) : '') }}</textarea>
+    <textarea name="options" class="form-control" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3">{{ old('options', isset($field) ? implode("\n", $field->selectable_options) : '') }}</textarea>
+</div>
+
+<div class="mb-3" id="customAnswerGroup" style="{{ old('type', $field->type ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="allow_custom_answer" id="allow_custom_answer" value="1"
+            {{ old('allow_custom_answer', isset($field) ? $field->hasOtherOption() : false) ? 'checked' : '' }}>
+        <label class="form-check-label fw-semibold" for="allow_custom_answer">Allow custom answer</label>
+    </div>
+    <div class="form-text">Adds an <strong>Other</strong> option with a free-text answer on the public form.</div>
 </div>
 
 <div class="mb-3">
@@ -45,6 +54,7 @@
 (function() {
     var fieldType = document.getElementById('fieldType');
     var optionsGroup = document.getElementById('optionsGroup');
+    var customAnswerGroup = document.getElementById('customAnswerGroup');
     var inputOnlyFields = document.getElementById('inputOnlyFields');
     var placeholderLabel = document.getElementById('placeholderLabel');
     var placeholderInput = document.getElementById('placeholderInput');
@@ -52,9 +62,11 @@
 
     function updateFieldVisibility(type) {
         var showOptions = ['dropdown', 'radio', 'checkbox'].includes(type);
+        var isCheckbox = type === 'checkbox';
         var isSection = type === 'section';
 
         optionsGroup.style.display = showOptions ? '' : 'none';
+        customAnswerGroup.style.display = isCheckbox ? '' : 'none';
         inputOnlyFields.style.display = isSection ? 'none' : '';
 
         if (isSection) {

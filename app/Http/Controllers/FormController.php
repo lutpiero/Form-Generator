@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Form;
+use App\Models\FormField;
 use App\Models\FormSubmission;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class FormController extends Controller
 {
@@ -53,26 +55,60 @@ class FormController extends Controller
 
         // Build validation rules from form fields
         $rules = [];
+        $messages = [];
+        $attributes = [];
+
         foreach ($form->fields as $field) {
             if ($field->type === 'section') {
                 continue;
             }
-            $fieldRules = [];
-            if ($field->required) {
-                $fieldRules[] = 'required';
-            } else {
-                $fieldRules[] = 'nullable';
+            $attributes[$field->name] = $field->label;
+
+            $fieldRules = [$field->required ? 'required' : 'nullable'];
+
+            switch ($field->type) {
+                case 'email':
+                    $fieldRules[] = 'email';
+                    break;
+                case 'phone':
+                    $fieldRules[] = 'regex:/' . FormField::PHONE_PATTERN . '/';
+                    $messages["{$field->name}.regex"] = 'Please enter a valid phone number.';
+                    break;
+                case 'number':
+                    $fieldRules[] = 'numeric';
+                    break;
+                case 'dropdown':
+                case 'radio':
+                    if (!empty($field->options_array)) {
+                        $fieldRules[] = Rule::in($field->options_array);
+                    }
+                    break;
+                case 'checkbox':
+                    $fieldRules[] = 'array';
+
+                    if (!empty($field->options_array)) {
+                        $rules["{$field->name}.*"] = ['string', Rule::in($field->options_array)];
+                    }
+
+                    if ($field->hasOtherOption()) {
+                        $otherFieldName = $field->other_input_name;
+                        $otherChecked = in_array(FormField::OTHER_OPTION_VALUE, (array) $request->input($field->name, []), true);
+
+                        $rules[$otherFieldName] = [
+                            $otherChecked ? 'required' : 'nullable',
+                            'string',
+                            'max:255',
+                        ];
+                        $attributes[$otherFieldName] = 'Other';
+                        $messages["{$otherFieldName}.required"] = 'Please enter a value for Other.';
+                    }
+                    break;
             }
-            if ($field->type === 'email') {
-                $fieldRules[] = 'email';
-            }
-            if ($field->type === 'number') {
-                $fieldRules[] = 'numeric';
-            }
+
             $rules[$field->name] = $fieldRules;
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, $messages, $attributes);
 
         // Filter only form field data (exclude section fields)
         $data = [];
@@ -80,7 +116,25 @@ class FormController extends Controller
             if ($field->type === 'section') {
                 continue;
             }
-            $data[$field->name] = $validated[$field->name] ?? null;
+
+            $value = $validated[$field->name] ?? null;
+
+            if ($field->type === 'checkbox') {
+                $value = array_values(array_filter(
+                    (array) $value,
+                    fn ($item) => $item !== null && $item !== ''
+                ));
+
+                if ($field->hasOtherOption() && in_array(FormField::OTHER_OPTION_VALUE, $value, true)) {
+                    $otherValue = trim((string) ($validated[$field->other_input_name] ?? ''));
+                    $value = array_map(
+                        fn ($item) => $item === FormField::OTHER_OPTION_VALUE ? FormField::formatOtherResponse($otherValue) : $item,
+                        $value
+                    );
+                }
+            }
+
+            $data[$field->name] = $value;
         }
 
         FormSubmission::create([

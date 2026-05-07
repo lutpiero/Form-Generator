@@ -24,20 +24,15 @@ class FormFieldController extends Controller
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
             'options' => 'nullable|string',
+            'allow_custom_answer' => 'boolean',
         ]);
 
         $validated['form_id'] = $form->id;
         $validated['name'] = Str::snake(Str::lower($validated['label']));
         $validated['required'] = $validated['type'] === 'section' ? false : $request->boolean('required', false);
         $validated['order'] = $form->fields()->count();
-
-        // Parse options for dropdown/radio/checkbox
-        if (!empty($validated['options'])) {
-            $optionsArray = array_filter(array_map('trim', explode("\n", $validated['options'])));
-            $validated['options'] = json_encode(array_values($optionsArray));
-        } else {
-            $validated['options'] = null;
-        }
+        $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
+        unset($validated['allow_custom_answer']);
 
         $form->fields()->create($validated);
 
@@ -60,18 +55,13 @@ class FormFieldController extends Controller
             'default_value' => 'nullable|string|max:255',
             'options' => 'nullable|string',
             'order' => 'nullable|integer',
+            'allow_custom_answer' => 'boolean',
         ]);
 
         $validated['name'] = Str::snake(Str::lower($validated['label']));
         $validated['required'] = $validated['type'] === 'section' ? false : $request->boolean('required', false);
-
-        // Parse options
-        if (!empty($validated['options'])) {
-            $optionsArray = array_filter(array_map('trim', explode("\n", $validated['options'])));
-            $validated['options'] = json_encode(array_values($optionsArray));
-        } else {
-            $validated['options'] = null;
-        }
+        $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
+        unset($validated['allow_custom_answer']);
 
         $field->update($validated);
 
@@ -98,5 +88,24 @@ class FormFieldController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    private function prepareOptions(Request $request, string $type, ?string $options): ?string
+    {
+        if (!in_array($type, ['dropdown', 'radio', 'checkbox'], true)) {
+            return null;
+        }
+
+        $optionsArray = array_values(array_filter(array_map('trim', explode("\n", (string) $options))));
+        $optionsArray = array_values(array_filter(
+            $optionsArray,
+            fn ($option) => $option !== FormField::OTHER_OPTION_VALUE
+        ));
+
+        if ($type === 'checkbox' && $request->boolean('allow_custom_answer', false)) {
+            $optionsArray[] = FormField::OTHER_OPTION_VALUE;
+        }
+
+        return empty($optionsArray) ? null : json_encode(array_values(array_unique($optionsArray)));
     }
 }
