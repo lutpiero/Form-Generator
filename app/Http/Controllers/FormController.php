@@ -60,6 +60,11 @@ class FormController extends Controller
             }
 
             if ($field->type === 'table') {
+                foreach ($field->table_columns as $column) {
+                    if (($column['type'] ?? null) === 'phone') {
+                        $messages["table_fields.{$field->id}.*.{$column['key']}.regex"] = 'Please enter a valid phone number.';
+                    }
+                }
                 $rules = array_merge($rules, $this->buildTableFieldRules($field));
                 continue;
             }

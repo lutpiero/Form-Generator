@@ -1,6 +1,4 @@
 @extends('layouts.public')
-@php use App\Models\FormField; @endphp
-
 @section('title', $form->name)
 
 @section('content')
@@ -85,8 +83,8 @@
                         $oldOtherValue = old($field->other_input_name);
 
                         if (!$oldOtherValue) {
-                            $storedOtherValue = $oldCheckboxValues->first(fn ($value) => FormField::isOtherResponse($value));
-                            $oldOtherValue = $storedOtherValue !== null ? FormField::extractOtherResponse($storedOtherValue) : '';
+                            $storedOtherValue = $oldCheckboxValues->first(fn ($value) => \App\Models\FormField::isOtherResponse($value));
+                            $oldOtherValue = $storedOtherValue !== null ? \App\Models\FormField::extractOtherResponse($storedOtherValue) : '';
                         }
                     @endphp
                     @foreach($field->selectable_options as $option)
@@ -100,12 +98,12 @@
                     @endforeach
                     @if($field->hasOtherOption())
                         @php
-                            $otherChecked = $oldCheckboxValues->contains(FormField::OTHER_OPTION_VALUE)
-                                || $oldCheckboxValues->contains(fn ($value) => FormField::isOtherResponse($value));
+                            $otherChecked = $oldCheckboxValues->contains(\App\Models\FormField::OTHER_OPTION_VALUE)
+                                || $oldCheckboxValues->contains(fn ($value) => \App\Models\FormField::isOtherResponse($value));
                         @endphp
                         <div class="form-check" data-other-option>
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="checkbox"
-                                   name="{{ $field->name }}[]" value="{{ FormField::OTHER_OPTION_VALUE }}"
+                                    name="{{ $field->name }}[]" value="{{ \App\Models\FormField::OTHER_OPTION_VALUE }}"
                                    id="{{ $field->name }}_other"
                                    data-other-toggle
                                    data-other-input="#{{ $field->other_input_name }}"
@@ -127,7 +125,7 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
-                        pattern="{{ App\Models\FormField::PHONE_PATTERN }}"
+                         pattern="{{ \App\Models\FormField::PHONE_PATTERN }}"
                         inputmode="tel"
                         {{ $field->required ? 'required' : '' }}>
                     @break
