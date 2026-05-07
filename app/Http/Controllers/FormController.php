@@ -77,7 +77,7 @@ class FormController extends Controller
                     $fieldRules[] = 'email';
                     break;
                 case 'phone':
-                    $fieldRules[] = 'regex:/'.FormField::PHONE_PATTERN.'/';
+                    $fieldRules[] = 'regex:/'.FormField::PHONE_REGEX_PATTERN.'/';
                     $messages["{$field->name}.regex"] = 'Please enter a valid phone number.';
                     break;
                 case 'number':
@@ -182,7 +182,7 @@ class FormController extends Controller
                     $columnRules[] = 'email';
                     break;
                 case 'phone':
-                    $columnRules[] = 'regex:/'.FormField::PHONE_PATTERN.'/';
+                    $columnRules[] = 'regex:/'.FormField::PHONE_REGEX_PATTERN.'/';
                     break;
                 case 'number':
                     $columnRules[] = 'numeric';

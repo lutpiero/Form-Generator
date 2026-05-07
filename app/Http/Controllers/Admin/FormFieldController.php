@@ -81,7 +81,7 @@ class FormFieldController extends Controller
             'default_value' => 'nullable|string|max:255',
             'options' => 'nullable|string',
             'order' => 'nullable|integer',
-            'allow_custom_answer' => 'boolean',
+            'allow_custom_answer' => 'nullable|boolean',
             'config.auto_number' => 'nullable|boolean',
             'config.columns' => 'nullable|array',
             'config.columns.*.key' => 'nullable|string|max:255',

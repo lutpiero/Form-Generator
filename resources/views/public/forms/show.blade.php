@@ -128,7 +128,7 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
-                         pattern="{{ $formFieldClass::PHONE_PATTERN }}"
+                         pattern="{{ $formFieldClass::PHONE_HTML_PATTERN }}"
                         inputmode="tel"
                         {{ $field->required ? 'required' : '' }}>
                     @break

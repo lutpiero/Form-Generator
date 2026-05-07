@@ -11,7 +11,8 @@ class FormField extends Model
 
     public const OTHER_OPTION_VALUE = '__other__';
     public const OTHER_PREFIX = 'other:';
-    public const PHONE_PATTERN = '^[0-9+\s\-]+$';
+    public const PHONE_REGEX_PATTERN = '^[0-9+\s\-]+$';
+    public const PHONE_HTML_PATTERN = '[0-9+\s\-]+';
 
     protected $fillable = [
         'form_id',
