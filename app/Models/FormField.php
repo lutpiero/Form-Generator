@@ -9,6 +9,8 @@ class FormField extends Model
 {
     use HasFactory;
 
+    public const OTHER_OPTION_VALUE = '__other__';
+
     protected $fillable = [
         'form_id',
         'label',
@@ -38,5 +40,23 @@ class FormField extends Model
         }
         $decoded = json_decode($this->options, true);
         return is_array($decoded) ? $decoded : [];
+    }
+
+    public function hasOtherOption(): bool
+    {
+        return in_array(self::OTHER_OPTION_VALUE, $this->options_array, true);
+    }
+
+    public function getSelectableOptionsAttribute(): array
+    {
+        return array_values(array_filter(
+            $this->options_array,
+            fn (string $option) => $option !== self::OTHER_OPTION_VALUE
+        ));
+    }
+
+    public function getOtherInputNameAttribute(): string
+    {
+        return "{$this->name}_other";
     }
 }

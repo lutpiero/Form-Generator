@@ -30,7 +30,7 @@
                             <td>
                                 @php $val = $submission->data[$field->name] ?? null; @endphp
                                 @if(is_array($val))
-                                    {{ implode(', ', $val) }}
+                                    {{ collect($val)->map(fn ($item) => str_starts_with($item, 'other:') ? 'Other: ' . substr($item, 6) : $item)->implode(', ') }}
                                 @elseif($val)
                                     {{ $val }}
                                 @else

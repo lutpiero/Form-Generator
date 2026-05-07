@@ -48,7 +48,7 @@
                             @foreach($form->fields as $field)
                                 <td>
                                     @php $val = $submission->data[$field->name] ?? '-'; @endphp
-                                    {{ is_array($val) ? implode(', ', $val) : $val }}
+                                    {{ is_array($val) ? collect($val)->map(fn ($item) => str_starts_with($item, 'other:') ? 'Other: ' . substr($item, 6) : $item)->implode(', ') : $val }}
                                 </td>
                             @endforeach
                             <td class="text-muted small">{{ $submission->ip_address }}</td>

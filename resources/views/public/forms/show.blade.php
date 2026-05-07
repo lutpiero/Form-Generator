@@ -25,7 +25,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('forms.submit', $form) }}">
+    <form method="POST" action="{{ route('forms.submit', $form) }}" id="public-form" data-form-validation novalidate>
         @csrf
 
         @foreach($form->fields as $field)
@@ -38,22 +38,26 @@
             @endif
         </div>
         @else
-        <div class="mb-3">
-            <label class="form-label fw-semibold">
+        @php
+            $fieldError = $errors->first($field->name);
+            $otherFieldError = $field->type === 'checkbox' ? $errors->first($field->other_input_name) : null;
+        @endphp
+        <div class="mb-3 form-field" data-field-type="{{ $field->type }}" data-field-name="{{ $field->name }}" data-label="{{ $field->label }}" data-required="{{ $field->required ? 'true' : 'false' }}">
+            <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox'])) for="{{ $field->name }}" @endif>
                 {{ $field->label }}
                 @if($field->required) <span class="text-danger">*</span> @endif
             </label>
 
             @switch($field->type)
                 @case('textarea')
-                    <textarea name="{{ $field->name }}"
+                    <textarea name="{{ $field->name }}" id="{{ $field->name }}"
                         class="form-control @error($field->name) is-invalid @enderror"
                         rows="4"
                         placeholder="{{ $field->placeholder }}"
                         {{ $field->required ? 'required' : '' }}>{{ old($field->name, $field->default_value) }}</textarea>
                     @break
                 @case('dropdown')
-                    <select name="{{ $field->name }}" class="form-select @error($field->name) is-invalid @enderror" {{ $field->required ? 'required' : '' }}>
+                    <select name="{{ $field->name }}" id="{{ $field->name }}" class="form-select @error($field->name) is-invalid @enderror" {{ $field->required ? 'required' : '' }}>
                         <option value="">{{ $field->placeholder ?: 'Select an option' }}</option>
                         @foreach($field->options_array as $option)
                             <option value="{{ $option }}" {{ old($field->name) == $option ? 'selected' : '' }}>{{ $option }}</option>
@@ -73,34 +77,66 @@
                     @endforeach
                     @break
                 @case('checkbox')
-                    @foreach($field->options_array as $option)
+                    @php
+                        $oldCheckboxValues = collect((array) old($field->name, []));
+                        $oldOtherValue = old($field->other_input_name);
+
+                        if (!$oldOtherValue) {
+                            $storedOtherValue = $oldCheckboxValues->first(fn ($value) => is_string($value) && str_starts_with($value, 'other:'));
+                            $oldOtherValue = $storedOtherValue ? substr($storedOtherValue, 6) : '';
+                        }
+                    @endphp
+                    @foreach($field->selectable_options as $option)
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox"
+                            <input class="form-check-input @if($fieldError) is-invalid @endif" type="checkbox"
                                    name="{{ $field->name }}[]" value="{{ $option }}"
                                    id="{{ $field->name }}_{{ $loop->index }}"
-                                   {{ in_array($option, (array) old($field->name, [])) ? 'checked' : '' }}>
+                                   {{ $oldCheckboxValues->contains($option) ? 'checked' : '' }}>
                             <label class="form-check-label" for="{{ $field->name }}_{{ $loop->index }}">{{ $option }}</label>
                         </div>
                     @endforeach
+                    @if($field->hasOtherOption())
+                        @php
+                            $otherChecked = $oldCheckboxValues->contains(App\Models\FormField::OTHER_OPTION_VALUE)
+                                || $oldCheckboxValues->contains(fn ($value) => is_string($value) && str_starts_with($value, 'other:'));
+                        @endphp
+                        <div class="form-check" data-other-option>
+                            <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="checkbox"
+                                   name="{{ $field->name }}[]" value="{{ App\Models\FormField::OTHER_OPTION_VALUE }}"
+                                   id="{{ $field->name }}_other"
+                                   data-other-toggle
+                                   data-other-input="#{{ $field->other_input_name }}"
+                                   {{ $otherChecked ? 'checked' : '' }}>
+                            <label class="form-check-label" for="{{ $field->name }}_other">Other</label>
+                            <input type="text"
+                                   name="{{ $field->other_input_name }}"
+                                   id="{{ $field->other_input_name }}"
+                                   value="{{ $oldOtherValue }}"
+                                   class="form-control mt-2 @error($field->other_input_name) is-invalid @enderror"
+                                   placeholder="Please specify"
+                                   data-other-input-field
+                                   {{ $otherChecked ? '' : 'disabled' }}>
+                        </div>
+                    @endif
                     @break
                 @case('phone')
-                    <input type="tel" name="{{ $field->name }}"
+                    <input type="tel" name="{{ $field->name }}" id="{{ $field->name }}"
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
                         {{ $field->required ? 'required' : '' }}>
                     @break
                 @default
-                    <input type="{{ $field->type }}" name="{{ $field->name }}"
+                    <input type="{{ $field->type }}" name="{{ $field->name }}" id="{{ $field->name }}"
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
                         {{ $field->required ? 'required' : '' }}>
             @endswitch
 
-            @error($field->name)
-                <div class="invalid-feedback d-block">{{ $message }}</div>
-            @enderror
+            <div class="invalid-feedback{{ $fieldError || $otherFieldError ? ' d-block' : '' }}" data-feedback>
+                {{ $fieldError ?: $otherFieldError }}
+            </div>
         </div>
         @endif
         @endforeach
@@ -114,16 +150,16 @@
 
         {{-- Math CAPTCHA --}}
         @if($form->captcha_enabled && $form->captcha_type === 'math' && $captcha)
-            <div class="mb-3 p-3 bg-light rounded">
+            <div class="mb-3 p-3 bg-light rounded form-field" data-field-type="number" data-field-name="captcha_answer" data-label="CAPTCHA" data-required="true">
                 <label class="form-label fw-semibold">
                     <i class="bi bi-shield-check"></i> CAPTCHA: {{ $captcha['question'] }}
                     <span class="text-danger">*</span>
                 </label>
-                <input type="number" name="captcha_answer"
+                <input type="number" name="captcha_answer" id="captcha_answer"
                     class="form-control @error('captcha_answer') is-invalid @enderror"
                     placeholder="Enter the answer" required>
                 @error('captcha_answer')
-                    <div class="invalid-feedback">{{ $message }}</div>
+                    <div class="invalid-feedback d-block">{{ $message }}</div>
                 @enderror
             </div>
         @endif
@@ -135,4 +171,5 @@
         </div>
     </form>
 </div>
+<script src="{{ asset('js/form-validation.js') }}" defer></script>
 @endsection

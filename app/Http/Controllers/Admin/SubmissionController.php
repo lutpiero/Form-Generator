@@ -56,9 +56,7 @@ class SubmissionController extends Controller
                 ];
                 foreach ($fields as $field) {
                     $value = $submission->data[$field->name] ?? '';
-                    if (is_array($value)) {
-                        $value = implode(', ', $value);
-                    }
+                    $value = $this->formatSubmissionValue($value);
                     $row[] = $value;
                 }
                 fputcsv($file, $row);
@@ -68,5 +66,17 @@ class SubmissionController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    private function formatSubmissionValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            return implode(', ', array_map(
+                fn (string $item) => str_starts_with($item, 'other:') ? 'Other: ' . substr($item, 6) : $item,
+                $value
+            ));
+        }
+
+        return (string) $value;
     }
 }
