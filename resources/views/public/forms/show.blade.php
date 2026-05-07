@@ -86,7 +86,7 @@
 
                         if (!$oldOtherValue) {
                             $storedOtherValue = $oldCheckboxValues->first(fn ($value) => FormField::isOtherResponse($value));
-                            $oldOtherValue = FormField::extractOtherResponse($storedOtherValue);
+                            $oldOtherValue = $storedOtherValue !== null ? FormField::extractOtherResponse($storedOtherValue) : '';
                         }
                     @endphp
                     @foreach($field->selectable_options as $option)

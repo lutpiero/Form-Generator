@@ -104,13 +104,14 @@ class FormFieldController extends Controller
 
     protected function normalizeFieldData(Request $request, array $validated): array
     {
+        unset($validated['allow_custom_answer']);
+
         if ($validated['type'] === 'table') {
             $validated['required'] = false;
             $validated['placeholder'] = null;
             $validated['default_value'] = null;
             $validated['options'] = null;
             $validated['config'] = $this->buildTableConfig($request);
-            unset($validated['allow_custom_answer']);
 
             return $validated;
         }
@@ -118,7 +119,6 @@ class FormFieldController extends Controller
         $validated['required'] = $validated['type'] === 'section' ? false : $request->boolean('required', false);
         $validated['config'] = null;
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
-        unset($validated['allow_custom_answer']);
 
         return $validated;
     }
