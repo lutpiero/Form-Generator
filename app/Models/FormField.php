@@ -9,6 +9,10 @@ class FormField extends Model
 {
     use HasFactory;
 
+    public const OTHER_OPTION_VALUE = '__other__';
+    public const OTHER_PREFIX = 'other:';
+    public const PHONE_PATTERN = '^[0-9+\s\-]+$';
+
     protected $fillable = [
         'form_id',
         'label',
@@ -38,8 +42,52 @@ class FormField extends Model
         if (!$this->options) {
             return [];
         }
+
         $decoded = json_decode($this->options, true);
+
         return is_array($decoded) ? $decoded : [];
+    }
+
+    public function hasOtherOption(): bool
+    {
+        return in_array(self::OTHER_OPTION_VALUE, $this->options_array, true);
+    }
+
+    public function getSelectableOptionsAttribute(): array
+    {
+        return array_values(array_filter(
+            $this->options_array,
+            fn ($option) => $option !== self::OTHER_OPTION_VALUE
+        ));
+    }
+
+    public function getOtherInputNameAttribute(): string
+    {
+        return "{$this->name}_other";
+    }
+
+    public static function isOtherResponse(mixed $value): bool
+    {
+        return is_string($value) && str_starts_with($value, self::OTHER_PREFIX);
+    }
+
+    public static function formatOtherResponse(string $value): string
+    {
+        return self::OTHER_PREFIX.$value;
+    }
+
+    public static function extractOtherResponse(mixed $value): string
+    {
+        return self::isOtherResponse($value)
+            ? substr($value, strlen(self::OTHER_PREFIX))
+            : '';
+    }
+
+    public static function displaySubmissionValue(mixed $value): string
+    {
+        return self::isOtherResponse($value)
+            ? 'Other: '.self::extractOtherResponse($value)
+            : (string) $value;
     }
 
     public function getTableColumnsAttribute(): array
@@ -66,7 +114,9 @@ class FormField extends Model
                     $columnValue = $row[$column['key']] ?? null;
 
                     if (is_array($columnValue)) {
-                        $columnValue = implode(', ', $columnValue);
+                        $columnValue = implode(', ', array_map([self::class, 'displaySubmissionValue'], $columnValue));
+                    } elseif ($columnValue !== null && $columnValue !== '') {
+                        $columnValue = self::displaySubmissionValue($columnValue);
                     }
 
                     if ($columnValue === null || $columnValue === '') {
@@ -87,7 +137,9 @@ class FormField extends Model
         }
 
         if (is_array($value)) {
-            $value = implode(', ', $value);
+            $value = implode(', ', array_map([self::class, 'displaySubmissionValue'], $value));
+        } elseif ($value !== null && $value !== '') {
+            $value = self::displaySubmissionValue($value);
         }
 
         if ($value === null || $value === '') {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Form;
+use App\Models\FormField;
 use App\Models\FormSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -15,7 +16,6 @@ class FormController extends Controller
             abort(404);
         }
 
-        // Generate math captcha if enabled
         $captcha = null;
         if ($form->captcha_enabled && $form->captcha_type === 'math') {
             $a = rand(1, 10);
@@ -33,7 +33,6 @@ class FormController extends Controller
             abort(404);
         }
 
-        // Honeypot check
         if ($form->captcha_enabled && $form->captcha_type === 'honeypot') {
             if ($request->filled('_honeypot')) {
                 return redirect()->route('forms.success', $form)
@@ -41,7 +40,6 @@ class FormController extends Controller
             }
         }
 
-        // Math captcha check
         if ($form->captcha_enabled && $form->captcha_type === 'math') {
             $answer = (int) $request->input('captcha_answer');
             $expected = session('captcha_answer');
@@ -52,8 +50,10 @@ class FormController extends Controller
             }
         }
 
-        // Build validation rules from form fields
         $rules = [];
+        $messages = [];
+        $attributes = [];
+
         foreach ($form->fields as $field) {
             if ($field->type === 'section') {
                 continue;
@@ -64,22 +64,53 @@ class FormController extends Controller
                 continue;
             }
 
-            $fieldRules = $field->required ? ['required'] : ['nullable'];
+            $attributes[$field->name] = $field->label;
+            $fieldRules = [$field->required ? 'required' : 'nullable'];
 
-            if ($field->type === 'email') {
-                $fieldRules[] = 'email';
-            }
+            switch ($field->type) {
+                case 'email':
+                    $fieldRules[] = 'email';
+                    break;
+                case 'phone':
+                    $fieldRules[] = 'regex:/'.FormField::PHONE_PATTERN.'/';
+                    $messages["{$field->name}.regex"] = 'Please enter a valid phone number.';
+                    break;
+                case 'number':
+                    $fieldRules[] = 'numeric';
+                    break;
+                case 'dropdown':
+                case 'radio':
+                    if (!empty($field->options_array)) {
+                        $fieldRules[] = Rule::in($field->options_array);
+                    }
+                    break;
+                case 'checkbox':
+                    $fieldRules[] = 'array';
 
-            if ($field->type === 'number') {
-                $fieldRules[] = 'numeric';
+                    if (!empty($field->options_array)) {
+                        $rules["{$field->name}.*"] = ['string', Rule::in($field->options_array)];
+                    }
+
+                    if ($field->hasOtherOption()) {
+                        $otherFieldName = $field->other_input_name;
+                        $otherChecked = in_array(FormField::OTHER_OPTION_VALUE, (array) $request->input($field->name, []), true);
+
+                        $rules[$otherFieldName] = [
+                            $otherChecked ? 'required' : 'nullable',
+                            'string',
+                            'max:255',
+                        ];
+                        $attributes[$otherFieldName] = 'Other';
+                        $messages["{$otherFieldName}.required"] = 'Please enter a value for Other.';
+                    }
+                    break;
             }
 
             $rules[$field->name] = $fieldRules;
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, $messages, $attributes);
 
-        // Filter only form field data (exclude section fields)
         $data = [];
         foreach ($form->fields as $field) {
             if ($field->type === 'section') {
@@ -92,7 +123,24 @@ class FormController extends Controller
                 continue;
             }
 
-            $data[$field->name] = $validated[$field->name] ?? null;
+            $value = $validated[$field->name] ?? null;
+
+            if ($field->type === 'checkbox') {
+                $value = array_values(array_filter(
+                    (array) $value,
+                    fn ($item) => $item !== null && $item !== ''
+                ));
+
+                if ($field->hasOtherOption() && in_array(FormField::OTHER_OPTION_VALUE, $value, true)) {
+                    $otherValue = trim((string) ($validated[$field->other_input_name] ?? ''));
+                    $value = array_map(
+                        fn ($item) => $item === FormField::OTHER_OPTION_VALUE ? FormField::formatOtherResponse($otherValue) : $item,
+                        $value
+                    );
+                }
+            }
+
+            $data[$field->name] = $value;
         }
 
         FormSubmission::create([
@@ -102,7 +150,6 @@ class FormController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
-        // Clear captcha session
         session()->forget(['captcha_answer', 'captcha_form']);
 
         return redirect()->route('forms.success', $form)
@@ -114,7 +161,7 @@ class FormController extends Controller
         return view('public.forms.success', compact('form'));
     }
 
-    protected function buildTableFieldRules($field): array
+    protected function buildTableFieldRules(FormField $field): array
     {
         $rules = [
             "table_fields.{$field->id}" => ['required', 'array', 'min:1'],
@@ -128,6 +175,9 @@ class FormController extends Controller
                 case 'email':
                     $columnRules[] = 'string';
                     $columnRules[] = 'email';
+                    break;
+                case 'phone':
+                    $columnRules[] = 'regex:/'.FormField::PHONE_PATTERN.'/';
                     break;
                 case 'number':
                     $columnRules[] = 'numeric';
@@ -159,7 +209,7 @@ class FormController extends Controller
         return $rules;
     }
 
-    protected function normalizeTableRows($field, array $rows): array
+    protected function normalizeTableRows(FormField $field, array $rows): array
     {
         $normalizedRows = [];
 

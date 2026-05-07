@@ -52,6 +52,7 @@ class FormFieldController extends Controller
     public function destroy(Form $form, FormField $field)
     {
         $field->delete();
+
         return redirect()->route('admin.forms.show', $form)
             ->with('success', 'Field deleted successfully.');
     }
@@ -80,6 +81,7 @@ class FormFieldController extends Controller
             'default_value' => 'nullable|string|max:255',
             'options' => 'nullable|string',
             'order' => 'nullable|integer',
+            'allow_custom_answer' => 'boolean',
             'config.auto_number' => 'nullable|boolean',
             'config.columns' => 'nullable|array',
             'config.columns.*.key' => 'nullable|string|max:255',
@@ -108,19 +110,15 @@ class FormFieldController extends Controller
             $validated['default_value'] = null;
             $validated['options'] = null;
             $validated['config'] = $this->buildTableConfig($request);
+            unset($validated['allow_custom_answer']);
 
             return $validated;
         }
 
         $validated['required'] = $validated['type'] === 'section' ? false : $request->boolean('required', false);
         $validated['config'] = null;
-
-        if (!empty($validated['options'])) {
-            $optionsArray = array_filter(array_map('trim', explode("\n", $validated['options'])));
-            $validated['options'] = json_encode(array_values($optionsArray));
-        } else {
-            $validated['options'] = null;
-        }
+        $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
+        unset($validated['allow_custom_answer']);
 
         return $validated;
     }
@@ -174,5 +172,24 @@ class FormFieldController extends Controller
             'auto_number' => $request->boolean('config.auto_number'),
             'columns' => $columns,
         ];
+    }
+
+    private function prepareOptions(Request $request, string $type, ?string $options): ?string
+    {
+        if (!in_array($type, ['dropdown', 'radio', 'checkbox'], true)) {
+            return null;
+        }
+
+        $optionsArray = array_values(array_filter(array_map('trim', explode("\n", (string) $options))));
+        $optionsArray = array_values(array_filter(
+            $optionsArray,
+            fn ($option) => $option !== FormField::OTHER_OPTION_VALUE
+        ));
+
+        if ($type === 'checkbox' && $request->boolean('allow_custom_answer', false)) {
+            $optionsArray[] = FormField::OTHER_OPTION_VALUE;
+        }
+
+        return empty($optionsArray) ? null : json_encode(array_values(array_unique($optionsArray)));
     }
 }

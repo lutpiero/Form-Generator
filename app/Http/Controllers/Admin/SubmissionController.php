@@ -12,6 +12,7 @@ class SubmissionController extends Controller
     public function index(Form $form)
     {
         $submissions = $form->submissions()->latest()->paginate(20);
+
         return view('admin.submissions.index', compact('form', 'submissions'));
     }
 
@@ -23,6 +24,7 @@ class SubmissionController extends Controller
     public function destroy(Form $form, FormSubmission $submission)
     {
         $submission->delete();
+
         return redirect()->route('admin.forms.submissions.index', $form)
             ->with('success', 'Submission deleted.');
     }
@@ -34,30 +36,30 @@ class SubmissionController extends Controller
 
         $headers = [
             'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $form->slug . '-submissions.csv"',
+            'Content-Disposition' => 'attachment; filename="'.$form->slug.'-submissions.csv"',
         ];
 
         $callback = function () use ($submissions, $fields) {
             $file = fopen('php://output', 'w');
 
-            // Header row
             $headerRow = ['Submission ID', 'Submitted At', 'IP Address'];
             foreach ($fields as $field) {
                 $headerRow[] = $field->label;
             }
             fputcsv($file, $headerRow);
 
-            // Data rows
             foreach ($submissions as $submission) {
                 $row = [
                     $submission->id,
                     $submission->created_at->format('Y-m-d H:i:s'),
                     $submission->ip_address,
                 ];
+
                 foreach ($fields as $field) {
                     $value = $submission->data[$field->name] ?? '';
                     $row[] = $field->formatSubmissionValue($value, true);
                 }
+
                 fputcsv($file, $row);
             }
 

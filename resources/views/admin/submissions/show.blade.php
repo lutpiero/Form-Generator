@@ -31,12 +31,8 @@
                                 @php $val = $submission->data[$field->name] ?? null; @endphp
                                 @if($field->type === 'table')
                                     @include('admin.submissions.partials.table-value', ['field' => $field, 'value' => $val])
-                                @elseif(is_array($val))
-                                    {{ implode(', ', $val) }}
-                                @elseif($val)
-                                    {{ $val }}
                                 @else
-                                    <span class="text-muted">—</span>
+                                    {{ $field->formatSubmissionValue($val) }}
                                 @endif
                             </td>
                         </tr>
