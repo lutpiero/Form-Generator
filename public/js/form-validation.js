@@ -116,13 +116,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         return false;
                     }
 
-                    if (primaryControl.min !== '' && numericValue < Number(primaryControl.min)) {
-                        setGroupValidity(group, false, `The ${label} must be at least ${primaryControl.min}.`);
+                    const minValue = primaryControl.getAttribute('min');
+                    const maxValue = primaryControl.getAttribute('max');
+
+                    if (minValue !== null && numericValue < Number(minValue)) {
+                        setGroupValidity(group, false, `The ${label} must be at least ${minValue}.`);
                         return false;
                     }
 
-                    if (primaryControl.max !== '' && numericValue > Number(primaryControl.max)) {
-                        setGroupValidity(group, false, `The ${label} must not be greater than ${primaryControl.max}.`);
+                    if (maxValue !== null && numericValue > Number(maxValue)) {
+                        setGroupValidity(group, false, `The ${label} must not be greater than ${maxValue}.`);
                         return false;
                     }
                 }
