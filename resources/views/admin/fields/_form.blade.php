@@ -242,6 +242,10 @@
         });
     }
 
+    function shouldRegenerateKey(keyInput, previousLabel) {
+        return keyInput && (!keyInput.value || keyInput.value === toSnakeCase(previousLabel || ''));
+    }
+
     function createColumn() {
         if (!tableColumnTemplate) {
             return;
@@ -324,7 +328,7 @@
 
             if (event.target.matches('[data-column-label]')) {
                 var keyInput = columnItem.querySelector('[data-column-key]');
-                if (keyInput && (!keyInput.value || keyInput.value === toSnakeCase(keyInput.dataset.previousLabel || ''))) {
+                if (shouldRegenerateKey(keyInput, keyInput ? keyInput.dataset.previousLabel : '')) {
                     keyInput.value = toSnakeCase(event.target.value);
                 }
                 keyInput.dataset.previousLabel = event.target.value;

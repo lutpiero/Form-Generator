@@ -269,7 +269,7 @@
         });
     });
 
-    var form = document.querySelector('form[action="{{ route('forms.submit', $form) }}"]');
+    var form = document.querySelector('.form-card form');
     if (form) {
         form.addEventListener('submit', function (event) {
             if (!validateRepeatableTables(form)) {
