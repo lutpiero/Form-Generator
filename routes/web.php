@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FormController as AdminFormController;
 use App\Http\Controllers\Admin\FormFieldController;
 use App\Http\Controllers\Admin\SubmissionController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\FormController;
 use Illuminate\Support\Facades\Route;
 
@@ -45,4 +46,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     Route::get('forms/{form}/submissions/export', [SubmissionController::class, 'export'])->name('forms.submissions.export');
     Route::get('forms/{form}/submissions/{submission}', [SubmissionController::class, 'show'])->name('forms.submissions.show');
     Route::delete('forms/{form}/submissions/{submission}', [SubmissionController::class, 'destroy'])->name('forms.submissions.destroy');
+
+    // Users (admin only)
+    Route::resource('users', UserController::class)->middleware('admin');
 });
