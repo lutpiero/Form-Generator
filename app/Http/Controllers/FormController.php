@@ -6,6 +6,7 @@ use App\Models\Form;
 use App\Models\FormField;
 use App\Models\FormSubmission;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class FormController extends Controller
@@ -101,8 +102,8 @@ class FormController extends Controller
                             'string',
                             'max:255',
                         ];
-                        $attributes[$otherFieldName] = 'Other';
-                        $messages["{$otherFieldName}.required"] = 'Please enter a value for Other.';
+                        $attributes[$otherFieldName] = $field->other_label;
+                        $messages["{$otherFieldName}.required"] = "Please enter a value for {$field->other_label}.";
                     }
                     break;
             }
@@ -110,7 +111,57 @@ class FormController extends Controller
             $rules[$field->name] = $fieldRules;
         }
 
-        $validated = $request->validate($rules, $messages, $attributes);
+        $validator = Validator::make($request->all(), $rules, $messages, $attributes);
+
+        $validator->after(function ($validator) use ($form, $request) {
+            foreach ($form->fields as $field) {
+                if ($field->type !== 'table') {
+                    continue;
+                }
+
+                $rows = $request->input("table_fields.{$field->id}", []);
+                if (!is_array($rows)) {
+                    continue;
+                }
+
+                foreach ($rows as $rowIndex => $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+
+                    foreach ($field->table_columns as $column) {
+                        if ($column['type'] !== 'checkbox' || empty($column['allow_custom_answer'])) {
+                            continue;
+                        }
+
+                        $selectedValues = array_values(array_filter(
+                            (array) ($row[$column['key']] ?? []),
+                            fn ($item) => $item !== null && $item !== ''
+                        ));
+
+                        if (!in_array(FormField::OTHER_OPTION_VALUE, $selectedValues, true)) {
+                            continue;
+                        }
+
+                        $otherInputKey = $this->tableOtherInputKey($column['key']);
+                        $otherValue = trim((string) ($row[$otherInputKey] ?? ''));
+
+                        if ($otherValue === '') {
+                            $validator->errors()->add(
+                                "table_fields.{$field->id}.{$rowIndex}.{$otherInputKey}",
+                                'Please enter a value for ' . ($column['other_label'] ?? FormField::DEFAULT_OTHER_LABEL) . '.'
+                            );
+                        }
+                    }
+                }
+            }
+        });
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        $validated = $validator->validated();
 
         $data = [];
         foreach ($form->fields as $field) {
@@ -195,8 +246,13 @@ class FormController extends Controller
                     if ($column['required'] ?? false) {
                         $columnRules[] = 'min:1';
                     }
-                    if (!empty($column['options'])) {
-                        $rules["table_fields.{$field->id}.*.{$key}.*"] = [Rule::in($column['options'])];
+                    $checkboxOptions = $column['options'] ?? [];
+                    if (!empty($column['allow_custom_answer'])) {
+                        $checkboxOptions[] = FormField::OTHER_OPTION_VALUE;
+                        $rules["table_fields.{$field->id}.*." . $this->tableOtherInputKey($key)] = ['nullable', 'string', 'max:255'];
+                    }
+                    if ($checkboxOptions !== []) {
+                        $rules["table_fields.{$field->id}.*.{$key}.*"] = ['string', Rule::in($checkboxOptions)];
                     }
                     break;
                 default:
@@ -224,6 +280,13 @@ class FormController extends Controller
 
                 if ($column['type'] === 'checkbox') {
                     $value = array_values(array_filter((array) $value, fn ($item) => $item !== null && $item !== ''));
+                    if (!empty($column['allow_custom_answer']) && in_array(FormField::OTHER_OPTION_VALUE, $value, true)) {
+                        $otherValue = trim((string) ($row[$this->tableOtherInputKey($key)] ?? ''));
+                        $value = array_map(
+                            fn ($item) => $item === FormField::OTHER_OPTION_VALUE ? FormField::formatOtherResponse($otherValue) : $item,
+                            $value
+                        );
+                    }
                     $hasValue = $hasValue || $value !== [];
                 } else {
                     $value = is_string($value) ? trim($value) : $value;
@@ -239,5 +302,10 @@ class FormController extends Controller
         }
 
         return $normalizedRows;
+    }
+
+    protected function tableOtherInputKey(string $columnKey): string
+    {
+        return "{$columnKey}_other";
     }
 }

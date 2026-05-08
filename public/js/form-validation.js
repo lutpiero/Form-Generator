@@ -15,9 +15,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return feedback;
         };
 
-        const updateOtherInputState = (toggle) => {
-            const inputSelector = toggle.dataset.otherInput;
-            const input = inputSelector ? form.querySelector(inputSelector) : null;
+        const getOtherInput = (toggle) => {
+            return toggle.closest('[data-other-option]')?.querySelector('[data-other-input-field]') || null;
+        };
+
+        const updateOtherInputState = (toggle, shouldFocus = false) => {
+            const input = getOtherInput(toggle);
 
             if (!input) {
                 return;
@@ -28,6 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!toggle.checked) {
                 input.value = '';
                 input.classList.remove('is-invalid');
+                return;
+            }
+
+            if (shouldFocus) {
+                input.focus();
             }
         };
 
@@ -56,7 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (type === 'checkbox') {
                 const checkedBoxes = group.querySelectorAll('input[type="checkbox"]:checked');
                 const otherToggle = group.querySelector('[data-other-toggle]');
-                const otherInput = group.querySelector('[data-other-input-field]');
+                const otherInput = otherToggle ? getOtherInput(otherToggle) : null;
+                const otherLabel = otherInput?.dataset.otherLabel || 'Other';
 
                 if (required && checkedBoxes.length === 0) {
                     setGroupValidity(group, false, getRequiredMessage(label));
@@ -64,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (otherToggle && otherToggle.checked && otherInput && otherInput.value.trim() === '') {
-                    setGroupValidity(group, false, 'Please enter a value for Other.');
+                    setGroupValidity(group, false, `Please enter a value for ${otherLabel}.`);
                     return false;
                 }
 
@@ -134,11 +143,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         form.querySelectorAll('[data-other-toggle]').forEach((toggle) => {
             updateOtherInputState(toggle);
+        });
 
-            toggle.addEventListener('change', () => {
-                updateOtherInputState(toggle);
-                validateGroup(toggle.closest('.form-field'));
-            });
+        form.addEventListener('change', (event) => {
+            const toggle = event.target.closest('[data-other-toggle]');
+            if (!toggle) {
+                return;
+            }
+
+            updateOtherInputState(toggle, toggle.checked);
+            const group = toggle.closest('.form-field');
+            if (group) {
+                validateGroup(group);
+            }
         });
 
         fieldGroups.forEach((group) => {

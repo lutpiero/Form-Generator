@@ -9,6 +9,7 @@ class FormField extends Model
 {
     use HasFactory;
 
+    public const DEFAULT_OTHER_LABEL = 'Other';
     public const OTHER_OPTION_VALUE = '__other__';
     public const OTHER_PREFIX = 'other:';
     public const PHONE_PATTERN = '^[0-9+\s\-]+$';
@@ -55,6 +56,11 @@ class FormField extends Model
         return in_array(self::OTHER_OPTION_VALUE, $this->options_array, true);
     }
 
+    public function getOtherLabelAttribute(): string
+    {
+        return self::normalizeOtherLabel(is_array($this->config) ? ($this->config['other_label'] ?? null) : null);
+    }
+
     public function getSelectableOptionsAttribute(): array
     {
         return array_values(array_filter(
@@ -80,12 +86,21 @@ class FormField extends Model
                 ? $column['type']
                 : 'text';
 
+            $options = self::normalizeOptions($type, $column['options'] ?? []);
+            $allowCustomAnswer = $type === 'checkbox'
+                && (!empty($column['allow_custom_answer']) || in_array(self::OTHER_OPTION_VALUE, $options, true));
+
             return [
                 'key' => is_string($column['key'] ?? null) ? $column['key'] : '',
                 'label' => is_string($column['label'] ?? null) ? $column['label'] : '',
                 'type' => $type,
                 'required' => !empty($column['required']),
-                'options' => self::normalizeOptions($type, $column['options'] ?? []),
+                'options' => array_values(array_filter(
+                    $options,
+                    fn ($option) => $option !== self::OTHER_OPTION_VALUE
+                )),
+                'allow_custom_answer' => $allowCustomAnswer,
+                'other_label' => self::normalizeOtherLabel($column['other_label'] ?? null),
             ];
         }, $columns)));
     }
@@ -117,10 +132,10 @@ class FormField extends Model
             : '';
     }
 
-    public static function displaySubmissionValue(mixed $value): string
+    public static function displaySubmissionValue(mixed $value, ?string $otherLabel = null): string
     {
         return self::isOtherResponse($value)
-            ? 'Other: ' . self::extractOtherResponse($value)
+            ? self::normalizeOtherLabel($otherLabel) . ': ' . self::extractOtherResponse($value)
             : (string) $value;
     }
 
@@ -132,7 +147,7 @@ class FormField extends Model
 
         if (is_array($value)) {
             return collect($value)
-                ->map(fn ($item) => self::displaySubmissionValue($item))
+                ->map(fn ($item) => self::displaySubmissionValue($item, $this->other_label))
                 ->implode(', ');
         }
 
@@ -140,7 +155,7 @@ class FormField extends Model
             return '—';
         }
 
-        return self::displaySubmissionValue($value);
+        return self::displaySubmissionValue($value, $this->other_label);
     }
 
     protected function formatTableSubmissionValue(mixed $value): string
@@ -166,12 +181,12 @@ class FormField extends Model
                             }
 
                             $formattedValue = collect($columnValue)
-                                ->map(fn ($item) => self::displaySubmissionValue($item))
+                                ->map(fn ($item) => self::displaySubmissionValue($item, $column['other_label'] ?? null))
                                 ->implode(', ');
                         } elseif ($columnValue === null || $columnValue === '') {
                             return null;
                         } else {
-                            $formattedValue = self::displaySubmissionValue($columnValue);
+                            $formattedValue = self::displaySubmissionValue($columnValue, $column['other_label'] ?? null);
                         }
 
                         return "{$column['label']}: {$formattedValue}";
@@ -202,5 +217,12 @@ class FormField extends Model
             ->filter(fn ($option) => $option !== '')
             ->values()
             ->all();
+    }
+
+    public static function normalizeOtherLabel(mixed $label): string
+    {
+        $normalized = trim((string) $label);
+
+        return $normalized !== '' ? $normalized : self::DEFAULT_OTHER_LABEL;
     }
 }
