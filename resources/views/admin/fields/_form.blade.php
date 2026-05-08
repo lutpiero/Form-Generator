@@ -1,6 +1,8 @@
 @php
     $selectedType = old('type', $field->type ?? 'text');
-    $tableColumns = old('config.columns', $field->config['columns'] ?? []);
+    $fieldConfig = isset($field) && is_array($field->config) ? $field->config : [];
+    $tableColumns = old('config.columns', $fieldConfig['columns'] ?? []);
+    $tableColumns = is_array($tableColumns) ? $tableColumns : [];
 @endphp
 
 <div class="mb-3" id="labelGroup">
@@ -34,15 +36,6 @@
 <div class="mb-3" id="optionsGroup" style="{{ in_array($selectedType, ['dropdown','radio','checkbox'], true) ? '' : 'display:none' }}">
     <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
     <textarea name="options" class="form-control" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3">{{ old('options', isset($field) ? implode("\n", $field->selectable_options) : '') }}</textarea>
-</div>
-
-<div class="mb-3" id="customAnswerGroup" style="{{ old('type', $field->type ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
-    <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" name="allow_custom_answer" id="allow_custom_answer" value="1"
-            {{ old('allow_custom_answer', isset($field) ? $field->hasOtherOption() : false) ? 'checked' : '' }}>
-        <label class="form-check-label fw-semibold" for="allow_custom_answer">Allow custom answer</label>
-    </div>
-    <div class="form-text">Adds an <strong>Other</strong> option with a free-text answer on the public form.</div>
 </div>
 
 <div class="mb-3" id="customAnswerGroup" style="{{ old('type', $field->type ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
@@ -116,7 +109,7 @@
                         </div>
                         <div class="col-12 column-options-group" style="{{ in_array($column['type'] ?? 'text', ['dropdown', 'radio', 'checkbox'], true) ? '' : 'display:none' }}">
                             <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
-                            <textarea name="config[columns][{{ $index }}][options]" rows="3" class="form-control">{{ implode("\n", $column['options'] ?? []) }}</textarea>
+                            <textarea name="config[columns][{{ $index }}][options]" rows="3" class="form-control">{{ is_array($column['options'] ?? []) ? implode("\n", $column['options'] ?? []) : ($column['options'] ?? '') }}</textarea>
                         </div>
                     </div>
                 </div>

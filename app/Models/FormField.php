@@ -12,6 +12,8 @@ class FormField extends Model
     public const OTHER_OPTION_VALUE = '__other__';
     public const OTHER_PREFIX = 'other:';
     public const PHONE_PATTERN = '^[0-9+\s\-]+$';
+    public const OPTION_BASED_TYPES = ['dropdown', 'radio', 'checkbox'];
+    public const TABLE_COLUMN_TYPES = ['text', 'email', 'phone', 'number', 'textarea', 'dropdown', 'radio', 'checkbox'];
 
     protected $fillable = [
         'form_id',
@@ -61,6 +63,38 @@ class FormField extends Model
         ));
     }
 
+    public function getTableColumnsAttribute(): array
+    {
+        $columns = is_array($this->config) ? ($this->config['columns'] ?? []) : [];
+
+        if (!is_array($columns)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(function ($column) {
+            if (!is_array($column)) {
+                return null;
+            }
+
+            $type = in_array($column['type'] ?? 'text', self::TABLE_COLUMN_TYPES, true)
+                ? $column['type']
+                : 'text';
+
+            return [
+                'key' => is_string($column['key'] ?? null) ? $column['key'] : '',
+                'label' => is_string($column['label'] ?? null) ? $column['label'] : '',
+                'type' => $type,
+                'required' => !empty($column['required']),
+                'options' => self::normalizeOptions($type, $column['options'] ?? []),
+            ];
+        }, $columns)));
+    }
+
+    public function getTableAutoNumberAttribute(): bool
+    {
+        return (bool) (is_array($this->config) ? ($this->config['auto_number'] ?? false) : false);
+    }
+
     public function getOtherInputNameAttribute(): string
     {
         return "{$this->name}_other";
@@ -88,5 +122,85 @@ class FormField extends Model
         return self::isOtherResponse($value)
             ? 'Other: ' . self::extractOtherResponse($value)
             : (string) $value;
+    }
+
+    public function formatSubmissionValue(mixed $value): string
+    {
+        if ($this->type === 'table') {
+            return $this->formatTableSubmissionValue($value);
+        }
+
+        if (is_array($value)) {
+            return collect($value)
+                ->map(fn ($item) => self::displaySubmissionValue($item))
+                ->implode(', ');
+        }
+
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return self::displaySubmissionValue($value);
+    }
+
+    protected function formatTableSubmissionValue(mixed $value): string
+    {
+        if (!is_array($value) || $value === []) {
+            return '—';
+        }
+
+        $rows = collect($value)
+            ->values()
+            ->map(function ($row, $index) {
+                if (!is_array($row)) {
+                    return null;
+                }
+
+                $segments = collect($this->table_columns)
+                    ->map(function ($column) use ($row) {
+                        $columnValue = $row[$column['key']] ?? null;
+
+                        if (is_array($columnValue)) {
+                            if ($columnValue === []) {
+                                return null;
+                            }
+
+                            $formattedValue = collect($columnValue)
+                                ->map(fn ($item) => self::displaySubmissionValue($item))
+                                ->implode(', ');
+                        } elseif ($columnValue === null || $columnValue === '') {
+                            return null;
+                        } else {
+                            $formattedValue = self::displaySubmissionValue($columnValue);
+                        }
+
+                        return "{$column['label']}: {$formattedValue}";
+                    })
+                    ->filter()
+                    ->implode('; ');
+
+                return $segments === '' ? null : 'Row '.($index + 1).': '.$segments;
+            })
+            ->filter()
+            ->implode(' | ');
+
+        return $rows !== '' ? $rows : '—';
+    }
+
+    public static function normalizeOptions(string $type, mixed $options): array
+    {
+        if (!in_array($type, self::OPTION_BASED_TYPES, true)) {
+            return [];
+        }
+
+        $values = is_array($options)
+            ? $options
+            : preg_split('/\r\n|\r|\n/', (string) $options);
+
+        return collect(is_array($values) ? $values : [])
+            ->map(fn ($option) => trim((string) $option))
+            ->filter(fn ($option) => $option !== '')
+            ->values()
+            ->all();
     }
 }

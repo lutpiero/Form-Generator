@@ -1,5 +1,4 @@
 @extends('layouts.admin')
-@php use App\Models\FormField; @endphp
 
 @section('title', 'Submissions')
 @section('page-title', 'Submissions: ' . $form->name)
@@ -49,7 +48,7 @@
                             @foreach($form->fields as $field)
                                 <td>
                                     @php $val = $submission->data[$field->name] ?? '-'; @endphp
-                                    {{ is_array($val) ? collect($val)->map(fn ($item) => FormField::displaySubmissionValue($item))->implode(', ') : $val }}
+                                    {{ $field->formatSubmissionValue($val) }}
                                 </td>
                             @endforeach
                             <td class="text-muted small">{{ $submission->ip_address }}</td>
