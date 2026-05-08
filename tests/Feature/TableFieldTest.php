@@ -202,13 +202,14 @@ class TableFieldTest extends TestCase
 
         $itemNameKey = $field->table_columns[0]['key'];
         $radioKey = $field->table_columns[1]['key'];
+        $checkboxKey = $field->table_columns[2]['key'];
 
         $submission = $form->submissions()->create([
             'data' => [
                 $field->name => [
                     [
                         $itemNameKey => 'Fuse Box',
-                        'checkbox_1' => ['other:Panel cadangan'],
+                        $checkboxKey => ['other:Panel cadangan'],
                         $radioKey => 'yes',
                     ],
                 ],
@@ -228,7 +229,7 @@ class TableFieldTest extends TestCase
             ->get(route('admin.forms.submissions.export', $form));
 
         $exportResponse->assertOk();
-        $this->assertStringContainsString('Row 1: Item Name: Fuse Box; Checkbox 1: Lainnya: Panel cadangan; Radio 1: yes', $exportResponse->streamedContent());
+        $this->assertStringContainsString('Row 1: Item Name: Fuse Box; Radio 1: yes; Checkbox 1: Lainnya: Panel cadangan', $exportResponse->streamedContent());
     }
 
     public function test_admin_field_form_re_renders_table_option_textareas_after_validation_failure(): void
