@@ -106,10 +106,10 @@
                         <div class="form-check" data-other-option>
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="checkbox"
                                    name="{{ $field->name }}[]" value="{{ FormField::OTHER_OPTION_VALUE }}"
-                                   id="{{ $field->name }}_other"
+                                   id="{{ $field->name }}_other_toggle"
                                    data-other-toggle
                                    {{ $otherChecked ? 'checked' : '' }}>
-                            <label class="form-check-label" for="{{ $field->name }}_other">{{ $field->other_label }}</label>
+                            <label class="form-check-label" for="{{ $field->name }}_other_toggle">{{ $field->other_label }}</label>
                             <input type="text"
                                    name="{{ $field->other_input_name }}"
                                    id="{{ $field->other_input_name }}"
