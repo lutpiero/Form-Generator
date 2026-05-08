@@ -6,6 +6,7 @@ use App\Models\Form;
 use App\Models\FormSubmission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class TableFieldTest extends TestCase
@@ -176,6 +177,14 @@ class TableFieldTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
+        $form->fields()->create([
+            'label' => 'Section Divider',
+            'name' => 'section_divider',
+            'type' => 'section',
+            'required' => false,
+            'order' => 0,
+        ]);
+
         $this->actingAs($admin)
             ->post(route('admin.forms.fields.store', $form), [
                 'label' => 'Inventory Items',
@@ -191,7 +200,7 @@ class TableFieldTest extends TestCase
             ])
             ->assertRedirect(route('admin.forms.show', $form));
 
-        $field = $form->fields()->firstOrFail()->fresh();
+        $field = $form->fields()->where('type', 'table')->firstOrFail()->fresh();
 
         $this->assertSame('table', $field->type);
         $this->assertTrue($field->table_auto_number);
@@ -230,6 +239,40 @@ class TableFieldTest extends TestCase
 
         $exportResponse->assertOk();
         $this->assertStringContainsString('Row 1: Item Name: Fuse Box; Radio 1: yes; Checkbox 1: Lainnya: Panel cadangan', $exportResponse->streamedContent());
+
+        $excelResponse = $this->actingAs($admin)
+            ->get(route('admin.forms.submissions.export-excel', $form));
+
+        $excelResponse->assertOk();
+        $excelResponse->assertHeader('content-disposition');
+        $this->assertStringContainsString(
+            'inventory-form-submissions-'.now()->format('Y-m-d').'.xlsx',
+            $excelResponse->headers->get('content-disposition', '')
+        );
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'xlsx_test_');
+        file_put_contents($tempFile, file_get_contents($excelResponse->baseResponse->getFile()->getPathname()));
+        $spreadsheet = IOFactory::load($tempFile);
+        @unlink($tempFile);
+
+        $summarySheet = $spreadsheet->getSheetByName('Submissions');
+        $this->assertNotNull($summarySheet);
+        $this->assertSame('#', $summarySheet->getCell('A1')->getValue());
+        $this->assertSame('Submitted At', $summarySheet->getCell('B1')->getValue());
+        $this->assertSame('Inventory Items', $summarySheet->getCell('C1')->getValue());
+        $this->assertSame('→ View Details', $summarySheet->getCell('C2')->getValue());
+        $this->assertStringContainsString("sheet://'R1_{$field->name}'!A1", $summarySheet->getCell('C2')->getHyperlink()->getUrl());
+
+        $tableSheet = $spreadsheet->getSheetByName("R1_{$field->name}");
+        $this->assertNotNull($tableSheet);
+        $this->assertSame('#', $tableSheet->getCell('A1')->getValue());
+        $this->assertSame('Item Name', $tableSheet->getCell('B1')->getValue());
+        $this->assertSame('Radio 1', $tableSheet->getCell('C1')->getValue());
+        $this->assertSame('Checkbox 1', $tableSheet->getCell('D1')->getValue());
+        $this->assertSame(1, $tableSheet->getCell('A2')->getValue());
+        $this->assertSame('Fuse Box', $tableSheet->getCell('B2')->getValue());
+        $this->assertSame('yes', $tableSheet->getCell('C2')->getValue());
+        $this->assertSame('Lainnya: Panel cadangan', $tableSheet->getCell('D2')->getValue());
     }
 
     public function test_admin_field_form_re_renders_table_option_textareas_after_validation_failure(): void

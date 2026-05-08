@@ -44,6 +44,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
     // Submissions
     Route::get('forms/{form}/submissions', [SubmissionController::class, 'index'])->name('forms.submissions.index');
     Route::get('forms/{form}/submissions/export', [SubmissionController::class, 'export'])->name('forms.submissions.export');
+    Route::get('forms/{form}/submissions/export-excel', [SubmissionController::class, 'exportExcel'])->name('forms.submissions.export-excel');
     Route::get('forms/{form}/submissions/{submission}', [SubmissionController::class, 'show'])->name('forms.submissions.show');
     Route::delete('forms/{form}/submissions/{submission}', [SubmissionController::class, 'destroy'])->name('forms.submissions.destroy');
 
