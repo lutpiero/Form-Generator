@@ -34,7 +34,9 @@
                         <tr>
                             <th>#ID</th>
                             @foreach($form->fields as $field)
+                                @if($field->type !== 'section')
                                 <th>{{ $field->label }}</th>
+                                @endif
                             @endforeach
                             <th>IP</th>
                             <th>Date</th>
@@ -46,10 +48,12 @@
                         <tr>
                             <td class="text-muted">{{ $submission->id }}</td>
                             @foreach($form->fields as $field)
+                                @if($field->type !== 'section')
                                 <td>
                                     @php $val = $submission->data[$field->name] ?? '-'; @endphp
                                     {{ $field->formatSubmissionValue($val) }}
                                 </td>
+                                @endif
                             @endforeach
                             <td class="text-muted small">{{ $submission->ip_address }}</td>
                             <td class="text-muted small">{{ $submission->created_at->format('M d, Y H:i') }}</td>
