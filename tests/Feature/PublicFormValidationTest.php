@@ -13,6 +13,9 @@ class PublicFormValidationTest extends TestCase
 {
     use RefreshDatabase;
 
+    // Matches the real-world name produced by Str::snake(Str::lower('(boleh pilih lebih dari 1)'))
+    private const SPECIAL_CHAR_FIELD_NAME = '(boleh_pilih_lebih_dari1)';
+
     public function test_admin_can_store_checkbox_field_with_custom_answer_option(): void
     {
         $user = User::factory()->create(['role' => 'admin']);
@@ -129,7 +132,7 @@ class PublicFormValidationTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
-        $specialName = '(boleh_pilih_lebih_dari1)';
+        $specialName = self::SPECIAL_CHAR_FIELD_NAME;
         $form->fields()->create([
             'label' => 'Pilihan',
             'name' => $specialName,
@@ -167,7 +170,7 @@ class PublicFormValidationTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
-        $specialName = '(boleh_pilih_lebih_dari1)';
+        $specialName = self::SPECIAL_CHAR_FIELD_NAME;
         $form->fields()->create([
             'label' => 'Pilihan',
             'name' => $specialName,
