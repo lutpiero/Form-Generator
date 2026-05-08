@@ -3,6 +3,8 @@
     $fieldConfig = isset($field) && is_array($field->config) ? $field->config : [];
     $tableColumns = old('config.columns', $fieldConfig['columns'] ?? []);
     $tableColumns = is_array($tableColumns) ? $tableColumns : [];
+    $customAnswerEnabled = old('allow_custom_answer', isset($field) ? $field->hasOtherOption() : false);
+    $customAnswerLabel = old('other_label', isset($field) ? $field->other_label : \App\Models\FormField::DEFAULT_OTHER_LABEL);
 @endphp
 
 <div class="mb-3" id="labelGroup">
@@ -41,10 +43,17 @@
 <div class="mb-3" id="customAnswerGroup" style="{{ old('type', $field->type ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
     <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" name="allow_custom_answer" id="allow_custom_answer" value="1"
-            {{ old('allow_custom_answer', isset($field) ? $field->hasOtherOption() : false) ? 'checked' : '' }}>
+            {{ $customAnswerEnabled ? 'checked' : '' }}>
         <label class="form-check-label fw-semibold" for="allow_custom_answer">Allow custom answer</label>
     </div>
-    <div class="form-text">Adds an <strong>Other</strong> option with a free-text answer on the public form.</div>
+    <div class="mt-3" id="customAnswerLabelGroup" style="{{ $customAnswerEnabled ? '' : 'display:none' }}">
+        <label class="form-label fw-semibold" for="other_label">Custom answer label</label>
+        <input type="text" name="other_label" id="other_label" class="form-control @error('other_label') is-invalid @enderror"
+               value="{{ $customAnswerLabel }}"
+               placeholder="e.g. Other, Lainnya, Please specify...">
+        @error('other_label')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+    <div class="form-text">Adds a customizable checkbox option with a free-text answer on the public form.</div>
 </div>
 
 <div id="tableConfigGroup" class="border rounded p-3 bg-light-subtle mb-3" style="{{ $selectedType === 'table' ? '' : 'display:none' }}">
@@ -111,6 +120,24 @@
                             <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
                             <textarea name="config[columns][{{ $index }}][options]" rows="3" class="form-control">{{ is_array($column['options'] ?? []) ? implode("\n", $column['options'] ?? []) : ($column['options'] ?? '') }}</textarea>
                         </div>
+                        <div class="col-12 column-custom-answer-group" style="{{ ($column['type'] ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
+                            @php
+                                $columnCustomAnswerEnabled = !empty($column['allow_custom_answer']);
+                                $columnOtherLabel = \App\Models\FormField::normalizeOtherLabel($column['other_label'] ?? null);
+                            @endphp
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="config[columns][{{ $index }}][allow_custom_answer]" value="1"
+                                       data-column-custom-answer {{ $columnCustomAnswerEnabled ? 'checked' : '' }}>
+                                <label class="form-check-label">Allow custom answer</label>
+                            </div>
+                            <div class="column-other-label-group" style="{{ $columnCustomAnswerEnabled ? '' : 'display:none' }}">
+                                <label class="form-label fw-semibold">Custom answer label</label>
+                                <input type="text" name="config[columns][{{ $index }}][other_label]" value="{{ $columnOtherLabel }}"
+                                       class="form-control @error("config.columns.$index.other_label") is-invalid @enderror"
+                                       placeholder="e.g. Other, Lainnya, Please specify...">
+                                @error("config.columns.$index.other_label")<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -157,6 +184,18 @@
                         <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
                         <textarea rows="3" class="form-control" data-name-template="config[columns][__INDEX__][options]"></textarea>
                     </div>
+                    <div class="col-12 column-custom-answer-group" style="display:none">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" value="1" data-name-template="config[columns][__INDEX__][allow_custom_answer]" data-column-custom-answer>
+                            <label class="form-check-label">Allow custom answer</label>
+                        </div>
+                        <div class="column-other-label-group" style="display:none">
+                            <label class="form-label fw-semibold">Custom answer label</label>
+                            <input type="text" class="form-control" value="{{ \App\Models\FormField::DEFAULT_OTHER_LABEL }}"
+                                   placeholder="e.g. Other, Lainnya, Please specify..."
+                                   data-name-template="config[columns][__INDEX__][other_label]">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -189,6 +228,8 @@
     var fieldType = document.getElementById('fieldType');
     var optionsGroup = document.getElementById('optionsGroup');
     var customAnswerGroup = document.getElementById('customAnswerGroup');
+    var customAnswerLabelGroup = document.getElementById('customAnswerLabelGroup');
+    var allowCustomAnswer = document.getElementById('allow_custom_answer');
     var inputOnlyFields = document.getElementById('inputOnlyFields');
     var tableConfigGroup = document.getElementById('tableConfigGroup');
     var placeholderGroup = document.getElementById('placeholderGroup');
@@ -210,12 +251,22 @@
     function updateColumnOptions(columnItem) {
         var typeSelect = columnItem.querySelector('[data-column-type]');
         var optionsGroup = columnItem.querySelector('.column-options-group');
+        var customAnswerGroup = columnItem.querySelector('.column-custom-answer-group');
+        var customAnswerToggle = columnItem.querySelector('[data-column-custom-answer]');
+        var otherLabelGroup = columnItem.querySelector('.column-other-label-group');
         if (!typeSelect || !optionsGroup) {
             return;
         }
 
         var showOptions = ['dropdown', 'radio', 'checkbox'].includes(typeSelect.value);
+        var isCheckbox = typeSelect.value === 'checkbox';
         optionsGroup.style.display = showOptions ? '' : 'none';
+        if (customAnswerGroup) {
+            customAnswerGroup.style.display = isCheckbox ? '' : 'none';
+        }
+        if (otherLabelGroup) {
+            otherLabelGroup.style.display = isCheckbox && customAnswerToggle && customAnswerToggle.checked ? '' : 'none';
+        }
     }
 
     function updateColumnCard(columnItem, index) {
@@ -278,7 +329,10 @@
 
         optionsGroup.style.display = showOptions ? '' : 'none';
         customAnswerGroup.style.display = isCheckbox ? '' : 'none';
-        inputOnlyFields.style.display = isSection ? 'none' : '';
+        if (customAnswerLabelGroup) {
+            customAnswerLabelGroup.style.display = isCheckbox && allowCustomAnswer && allowCustomAnswer.checked ? '' : 'none';
+        }
+        inputOnlyFields.style.display = (isSection || isTable) ? 'none' : '';
 
         if (isSection) {
             labelText.innerHTML = 'Section Title <span class="text-danger">*</span>';
@@ -302,6 +356,14 @@
     fieldType.addEventListener('change', function() {
         updateFieldVisibility(this.value);
     });
+
+    if (allowCustomAnswer) {
+        allowCustomAnswer.addEventListener('change', function() {
+            if (customAnswerLabelGroup) {
+                customAnswerLabelGroup.style.display = this.checked ? '' : 'none';
+            }
+        });
+    }
 
     if (addTableColumnButton) {
         addTableColumnButton.addEventListener('click', createColumn);
@@ -351,7 +413,7 @@
 
         columnsContainer.addEventListener('change', function(event) {
             var columnItem = event.target.closest('.table-column-item');
-            if (columnItem && event.target.matches('[data-column-type]')) {
+            if (columnItem && (event.target.matches('[data-column-type]') || event.target.matches('[data-column-custom-answer]'))) {
                 updateColumnOptions(columnItem);
             }
         });

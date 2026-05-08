@@ -29,6 +29,7 @@ class PublicFormValidationTest extends TestCase
             'type' => 'checkbox',
             'options' => "Fuse Box\nCable",
             'allow_custom_answer' => '1',
+            'other_label' => 'Lainnya',
         ]);
 
         $response->assertRedirect(route('admin.forms.show', $form));
@@ -37,6 +38,7 @@ class PublicFormValidationTest extends TestCase
 
         $this->assertNotNull($field);
         $this->assertSame(['Fuse Box', 'Cable', FormField::OTHER_OPTION_VALUE], $field->options_array);
+        $this->assertSame('Lainnya', $field->other_label);
     }
 
     public function test_public_form_renders_other_checkbox_input_and_validation_script(): void
@@ -51,6 +53,7 @@ class PublicFormValidationTest extends TestCase
         $response->assertSee('value="__other__"', false);
         $response->assertSee('name="preferences_other"', false);
         $response->assertSee('data-other-option', false);
+        $response->assertSee('Lainnya');
         $response->assertSee('js/form-validation.js', false);
     }
 
@@ -64,7 +67,7 @@ class PublicFormValidationTest extends TestCase
         ]);
 
         $response->assertRedirect(route('forms.show', $field->form));
-        $response->assertSessionHasErrors(['preferences_other' => 'Please enter a value for Other.']);
+        $response->assertSessionHasErrors(['preferences_other' => 'Please enter a value for Lainnya.']);
         $this->assertDatabaseCount('form_submissions', 0);
     }
 
@@ -127,6 +130,7 @@ class PublicFormValidationTest extends TestCase
             'name' => 'preferences',
             'type' => 'checkbox',
             'options' => json_encode(['Fuse Box', 'Cable', FormField::OTHER_OPTION_VALUE]),
+            'config' => ['other_label' => 'Lainnya'],
             'required' => false,
             'order' => 0,
         ], $overrides));

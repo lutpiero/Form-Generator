@@ -12,7 +12,8 @@
         @php
             $columnKey = $column['key'];
             $errorKey = "table_fields.{$field->id}.{$rowIndex}.{$columnKey}";
-            $errorMessage = $errors->first($errorKey) ?: $errors->first($errorKey.'.0');
+            $otherInputKey = "{$columnKey}_other";
+            $errorMessage = $errors->first($errorKey) ?: $errors->first($errorKey.'.0') ?: $errors->first("table_fields.{$field->id}.{$rowIndex}.{$otherInputKey}");
             $isInvalid = $errorMessage !== '';
             $columnValue = $rowValues[$columnKey] ?? null;
         @endphp
@@ -58,21 +59,60 @@
                     @break
 
                 @case('checkbox')
+                    @php
+                        $checkboxValues = collect((array) $columnValue);
+                        $otherValue = $rowValues[$otherInputKey] ?? null;
+
+                        if (!is_string($otherValue) || trim($otherValue) === '') {
+                            $storedOtherValue = $checkboxValues->first(fn ($value) => \App\Models\FormField::isOtherResponse($value));
+                            $otherValue = \App\Models\FormField::extractOtherResponse($storedOtherValue);
+                        }
+
+                        $otherChecked = $checkboxValues->contains(\App\Models\FormField::OTHER_OPTION_VALUE)
+                            || $checkboxValues->contains(fn ($value) => \App\Models\FormField::isOtherResponse($value));
+                    @endphp
                     <div class="d-flex flex-column gap-1">
                         @foreach($column['options'] ?? [] as $optionIndex => $option)
                             @php $checkboxInputId = "{$field->id}_{$rowIndex}_{$columnKey}_{$optionIndex}"; @endphp
                             <div class="form-check">
                                 <input
-                                    class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
-                                    type="checkbox"
-                                    name="{{ $baseName }}[{{ $columnKey }}][]"
-                                    value="{{ $option }}"
-                                    id="{{ $checkboxInputId }}"
-                                    {{ in_array($option, (array) $columnValue, true) ? 'checked' : '' }}
+                                     class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
+                                     type="checkbox"
+                                     name="{{ $baseName }}[{{ $columnKey }}][]"
+                                     value="{{ $option }}"
+                                     id="{{ $checkboxInputId }}"
+                                     {{ $checkboxValues->contains($option) ? 'checked' : '' }}
                                 >
                                 <label class="form-check-label small" for="{{ $checkboxInputId }}">{{ $option }}</label>
                             </div>
                         @endforeach
+                        @if(!empty($column['allow_custom_answer']))
+                            @php $otherInputId = "{$field->id}_{$rowIndex}_{$columnKey}_other"; @endphp
+                            <div class="form-check" data-other-option>
+                                <input
+                                    class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
+                                    type="checkbox"
+                                    name="{{ $baseName }}[{{ $columnKey }}][]"
+                                    value="{{ \App\Models\FormField::OTHER_OPTION_VALUE }}"
+                                    id="{{ $otherInputId }}_toggle"
+                                    data-other-toggle
+                                    data-other-input-id="{{ $otherInputId }}"
+                                    {{ $otherChecked ? 'checked' : '' }}
+                                >
+                                <label class="form-check-label small" for="{{ $otherInputId }}_toggle">{{ $column['other_label'] }}</label>
+                                <input
+                                    type="text"
+                                    name="{{ $baseName }}[{{ $otherInputKey }}]"
+                                    id="{{ $otherInputId }}"
+                                    value="{{ is_string($otherValue) ? $otherValue : '' }}"
+                                    class="form-control form-control-sm mt-2 {{ $isInvalid ? 'is-invalid' : '' }}"
+                                    placeholder="Please specify"
+                                    data-other-label="{{ $column['other_label'] }}"
+                                    data-other-input-field
+                                    {{ $otherChecked ? '' : 'disabled' }}
+                                >
+                            </div>
+                        @endif
                     </div>
                     @break
 

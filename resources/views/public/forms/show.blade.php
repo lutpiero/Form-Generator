@@ -106,17 +106,18 @@
                         <div class="form-check" data-other-option>
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="checkbox"
                                    name="{{ $field->name }}[]" value="{{ FormField::OTHER_OPTION_VALUE }}"
-                                   id="{{ $field->name }}_other"
+                                   id="{{ $field->name }}_other_toggle"
                                    data-other-toggle
-                                   data-other-input="#{{ $field->other_input_name }}"
+                                   data-other-input-id="{{ $field->other_input_name }}"
                                    {{ $otherChecked ? 'checked' : '' }}>
-                            <label class="form-check-label" for="{{ $field->name }}_other">Other</label>
+                            <label class="form-check-label" for="{{ $field->name }}_other_toggle">{{ $field->other_label }}</label>
                             <input type="text"
                                    name="{{ $field->other_input_name }}"
                                    id="{{ $field->other_input_name }}"
                                    value="{{ $oldOtherValue }}"
                                    class="form-control mt-2 @error($field->other_input_name) is-invalid @enderror"
                                    placeholder="Please specify"
+                                   data-other-label="{{ $field->other_label }}"
                                    data-other-input-field
                                    {{ $otherChecked ? '' : 'disabled' }}>
                         </div>
@@ -182,6 +183,8 @@
 @push('scripts')
 <script>
 (function () {
+    var defaultOtherLabel = @js(FormField::DEFAULT_OTHER_LABEL);
+
     function updateTableState(tableWrapper) {
         var rows = Array.from(tableWrapper.querySelectorAll('[data-table-row]'));
         rows.forEach(function (row, index) {
@@ -224,6 +227,17 @@
         }
     }
 
+    function getCheckboxOtherState(cell) {
+        var toggle = cell.querySelector('[data-other-toggle]');
+        var input = cell.querySelector('[data-other-input-field]');
+
+        return {
+            toggle: toggle,
+            input: input,
+            label: input?.dataset.otherLabel || defaultOtherLabel,
+        };
+    }
+
     function cellHasValue(cell, type) {
         var inputs = cell.querySelectorAll('input, select, textarea');
 
@@ -252,10 +266,18 @@
             var tableValid = true;
 
             tableWrapper.querySelectorAll('[data-table-row]').forEach(function (row) {
-                row.querySelectorAll('td[data-required="1"]').forEach(function (cell) {
+                row.querySelectorAll('td[data-column-type]').forEach(function (cell) {
                     clearCellValidation(cell);
 
-                    if (!cellHasValue(cell, cell.dataset.columnType)) {
+                    var otherState = cell.dataset.columnType === 'checkbox' ? getCheckboxOtherState(cell) : null;
+                    if (otherState?.toggle?.checked && otherState.input?.value.trim() === '') {
+                        tableValid = false;
+                        valid = false;
+                        markCellInvalid(cell, 'Please enter a value for ' + otherState.label + '.');
+                        return;
+                    }
+
+                    if (cell.dataset.required === '1' && !cellHasValue(cell, cell.dataset.columnType)) {
                         tableValid = false;
                         valid = false;
                         markCellInvalid(cell, 'This field is required.');
@@ -298,13 +320,20 @@
         });
 
         tableWrapper.addEventListener('change', function (event) {
-            var cell = event.target.closest('td[data-required="1"]');
+            var cell = event.target.closest('td[data-column-type]');
             if (cell) {
                 clearCellValidation(cell);
                 var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
                 if (summaryError) {
                     summaryError.classList.add('d-none');
                 }
+            }
+        });
+
+        tableWrapper.addEventListener('input', function (event) {
+            var cell = event.target.closest('td[data-column-type="checkbox"]');
+            if (cell) {
+                clearCellValidation(cell);
             }
         });
     });

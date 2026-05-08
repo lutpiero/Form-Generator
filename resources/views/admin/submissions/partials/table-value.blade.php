@@ -21,9 +21,9 @@
                             @php $columnValue = $row[$column['key']] ?? null; @endphp
                             <td>
                                 @if(is_array($columnValue))
-                                    {{ $columnValue !== [] ? collect($columnValue)->map(fn ($item) => \App\Models\FormField::displaySubmissionValue($item))->implode(', ') : '—' }}
+                                    {{ $columnValue !== [] ? collect($columnValue)->map(fn ($item) => \App\Models\FormField::displaySubmissionValue($item, $column['other_label'] ?? null))->implode(', ') : '—' }}
                                 @elseif($columnValue !== null && $columnValue !== '')
-                                    {{ \App\Models\FormField::displaySubmissionValue($columnValue) }}
+                                    {{ \App\Models\FormField::displaySubmissionValue($columnValue, $column['other_label'] ?? null) }}
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif

@@ -28,6 +28,8 @@ class TableFieldTest extends TestCase
             ->assertOk()
             ->assertSee('Inventory Items')
             ->assertSee("table_fields[{$field->id}][0][item_name]", false)
+            ->assertSee("table_fields[{$field->id}][0][checkbox_1_other]", false)
+            ->assertSee('Lainnya')
             ->assertSee('Add Row');
 
         $response = $this->post(route('forms.submit', $form), [
@@ -101,6 +103,68 @@ class TableFieldTest extends TestCase
         $response->assertSessionHasErrors("table_fields.{$field->id}.0.item_name");
     }
 
+    public function test_repeatable_table_requires_other_text_when_custom_checkbox_answer_is_selected(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->tableFieldAttributes());
+
+        $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'item_name' => 'Fuse Box',
+                        'checkbox_1' => [\App\Models\FormField::OTHER_OPTION_VALUE],
+                        'checkbox_1_other' => '   ',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.show', $form));
+        $response->assertSessionHasErrors("table_fields.{$field->id}.0.checkbox_1_other");
+        $this->assertDatabaseCount('form_submissions', 0);
+    }
+
+    public function test_repeatable_table_stores_other_checkbox_values(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->tableFieldAttributes());
+
+        $response = $this->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'item_name' => 'Fuse Box',
+                        'checkbox_1' => ['opt1', \App\Models\FormField::OTHER_OPTION_VALUE],
+                        'checkbox_1_other' => 'Panel cadangan',
+                        'radio_1' => 'yes',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+        $submission = FormSubmission::firstOrFail();
+
+        $this->assertSame(['opt1', 'other:Panel cadangan'], $submission->data[$field->name][0]['checkbox_1']);
+    }
+
     public function test_admin_can_create_table_fields_and_view_export_submission_values(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -121,6 +185,7 @@ class TableFieldTest extends TestCase
                     'columns' => [
                         ['label' => 'Item Name', 'type' => 'text', 'required' => '1'],
                         ['label' => 'Radio 1', 'type' => 'radio', 'options' => "yes\nno"],
+                        ['label' => 'Checkbox 1', 'type' => 'checkbox', 'options' => "opt1\nopt2", 'allow_custom_answer' => '1', 'other_label' => 'Lainnya'],
                     ],
                 ],
             ])
@@ -131,16 +196,20 @@ class TableFieldTest extends TestCase
         $this->assertSame('table', $field->type);
         $this->assertTrue($field->table_auto_number);
         $this->assertSame('item_name', $field->table_columns[0]['key']);
+        $this->assertTrue($field->table_columns[2]['allow_custom_answer']);
+        $this->assertSame('Lainnya', $field->table_columns[2]['other_label']);
         $this->assertSame(['yes', 'no'], $field->table_columns[1]['options']);
 
         $itemNameKey = $field->table_columns[0]['key'];
         $radioKey = $field->table_columns[1]['key'];
+        $checkboxKey = $field->table_columns[2]['key'];
 
         $submission = $form->submissions()->create([
             'data' => [
                 $field->name => [
                     [
                         $itemNameKey => 'Fuse Box',
+                        $checkboxKey => ['other:Panel cadangan'],
                         $radioKey => 'yes',
                     ],
                 ],
@@ -153,13 +222,14 @@ class TableFieldTest extends TestCase
             ->get(route('admin.forms.submissions.show', [$form, $submission]))
             ->assertOk()
             ->assertSee('Item Name')
-            ->assertSee('Fuse Box');
+            ->assertSee('Fuse Box')
+            ->assertSee('Lainnya: Panel cadangan');
 
         $exportResponse = $this->actingAs($admin)
             ->get(route('admin.forms.submissions.export', $form));
 
         $exportResponse->assertOk();
-        $this->assertStringContainsString('Row 1: Item Name: Fuse Box; Radio 1: yes', $exportResponse->streamedContent());
+        $this->assertStringContainsString('Row 1: Item Name: Fuse Box; Radio 1: yes; Checkbox 1: Lainnya: Panel cadangan', $exportResponse->streamedContent());
     }
 
     public function test_admin_field_form_re_renders_table_option_textareas_after_validation_failure(): void
@@ -182,6 +252,7 @@ class TableFieldTest extends TestCase
                 'config' => [
                     'columns' => [
                         ['label' => 'Radio 1', 'type' => 'radio', 'options' => "yes\nno"],
+                        ['label' => 'Checkbox 1', 'type' => 'checkbox', 'options' => "opt1\nopt2", 'allow_custom_answer' => '1', 'other_label' => 'Lainnya'],
                     ],
                 ],
             ]);
@@ -189,6 +260,8 @@ class TableFieldTest extends TestCase
         $response->assertOk();
         $response->assertSee('Radio 1');
         $response->assertSee("yes\nno", false);
+        $response->assertSee('Checkbox 1');
+        $response->assertSee('Lainnya');
         $this->assertSame(1, substr_count($response->getContent(), 'id="customAnswerGroup"'));
         $this->assertStringContainsString('id="customAnswerGroup" style="display:none"', $response->getContent());
     }
@@ -206,7 +279,7 @@ class TableFieldTest extends TestCase
                 'columns' => [
                     ['key' => 'item_name', 'label' => 'Item Name', 'type' => 'text', 'required' => true, 'options' => []],
                     ['key' => 'field_1', 'label' => 'Field 1', 'type' => 'text', 'required' => false, 'options' => []],
-                    ['key' => 'checkbox_1', 'label' => 'Checkbox 1', 'type' => 'checkbox', 'required' => false, 'options' => ['opt1', 'opt2']],
+                    ['key' => 'checkbox_1', 'label' => 'Checkbox 1', 'type' => 'checkbox', 'required' => false, 'options' => ['opt1', 'opt2'], 'allow_custom_answer' => true, 'other_label' => 'Lainnya'],
                     ['key' => 'radio_1', 'label' => 'Radio 1', 'type' => 'radio', 'required' => false, 'options' => ['yes', 'no']],
                 ],
             ],

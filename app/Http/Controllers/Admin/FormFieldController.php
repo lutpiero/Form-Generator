@@ -26,12 +26,15 @@ class FormFieldController extends Controller
             'default_value' => 'nullable|string|max:255',
             'options' => 'nullable|string',
             'allow_custom_answer' => 'boolean',
+            'other_label' => 'nullable|string|max:255',
             'config.auto_number' => 'sometimes|boolean',
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
             'config.columns.*.key' => 'nullable|string|max:255',
             'config.columns.*.type' => 'nullable|in:text,email,phone,number,textarea,dropdown,radio,checkbox',
             'config.columns.*.required' => 'sometimes|boolean',
+            'config.columns.*.allow_custom_answer' => 'sometimes|boolean',
+            'config.columns.*.other_label' => 'nullable|string|max:255',
             'config.columns.*.options' => 'nullable',
         ]);
 
@@ -66,12 +69,15 @@ class FormFieldController extends Controller
             'options' => 'nullable|string',
             'order' => 'nullable|integer',
             'allow_custom_answer' => 'boolean',
+            'other_label' => 'nullable|string|max:255',
             'config.auto_number' => 'sometimes|boolean',
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
             'config.columns.*.key' => 'nullable|string|max:255',
             'config.columns.*.type' => 'nullable|in:text,email,phone,number,textarea,dropdown,radio,checkbox',
             'config.columns.*.required' => 'sometimes|boolean',
+            'config.columns.*.allow_custom_answer' => 'sometimes|boolean',
+            'config.columns.*.other_label' => 'nullable|string|max:255',
             'config.columns.*.options' => 'nullable',
         ]);
 
@@ -131,6 +137,12 @@ class FormFieldController extends Controller
 
     private function prepareConfig(Request $request, string $type): ?array
     {
+        if ($type === 'checkbox' && $request->boolean('allow_custom_answer', false)) {
+            return [
+                'other_label' => FormField::normalizeOtherLabel($request->input('other_label')),
+            ];
+        }
+
         if ($type !== 'table') {
             return null;
         }
@@ -152,12 +164,19 @@ class FormFieldController extends Controller
             $key = $baseKey !== '' ? $baseKey : 'column_'.($index + 1);
             $key = $this->ensureUniqueColumnKey($key, $columns);
 
+            $allowCustomAnswer = $columnType === 'checkbox' && !empty($column['allow_custom_answer']);
+
             $columns[] = [
                 'key' => $key,
                 'label' => $label,
                 'type' => $columnType,
                 'required' => !empty($column['required']),
-                'options' => FormField::normalizeOptions($columnType, $column['options'] ?? null),
+                'options' => array_values(array_filter(
+                    FormField::normalizeOptions($columnType, $column['options'] ?? null),
+                    fn ($option) => $option !== FormField::OTHER_OPTION_VALUE
+                )),
+                'allow_custom_answer' => $allowCustomAnswer,
+                'other_label' => FormField::normalizeOtherLabel($column['other_label'] ?? null),
             ];
         }
 
