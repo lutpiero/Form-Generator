@@ -108,6 +108,7 @@
                                    name="{{ $field->name }}[]" value="{{ FormField::OTHER_OPTION_VALUE }}"
                                    id="{{ $field->name }}_other_toggle"
                                    data-other-toggle
+                                   data-other-input-id="{{ $field->other_input_name }}"
                                    {{ $otherChecked ? 'checked' : '' }}>
                             <label class="form-check-label" for="{{ $field->name }}_other_toggle">{{ $field->other_label }}</label>
                             <input type="text"
@@ -182,6 +183,8 @@
 @push('scripts')
 <script>
 (function () {
+    var defaultOtherLabel = @js(FormField::DEFAULT_OTHER_LABEL);
+
     function updateTableState(tableWrapper) {
         var rows = Array.from(tableWrapper.querySelectorAll('[data-table-row]'));
         rows.forEach(function (row, index) {
@@ -231,7 +234,7 @@
         return {
             toggle: toggle,
             input: input,
-            label: input ? (input.dataset.otherLabel || '{{ FormField::DEFAULT_OTHER_LABEL }}') : '{{ FormField::DEFAULT_OTHER_LABEL }}',
+            label: input?.dataset.otherLabel || defaultOtherLabel,
         };
     }
 
@@ -267,7 +270,7 @@
                     clearCellValidation(cell);
 
                     var otherState = cell.dataset.columnType === 'checkbox' ? getCheckboxOtherState(cell) : null;
-                    if (otherState && otherState.toggle && otherState.toggle.checked && otherState.input && otherState.input.value.trim() === '') {
+                    if (otherState?.toggle?.checked && otherState.input?.value.trim() === '') {
                         tableValid = false;
                         valid = false;
                         markCellInvalid(cell, 'Please enter a value for ' + otherState.label + '.');

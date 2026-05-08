@@ -16,10 +16,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const getOtherInput = (toggle) => {
-            return toggle.closest('[data-other-option]')?.querySelector('[data-other-input-field]') || null;
+            if (toggle.dataset.otherInputId) {
+                return form.querySelector(`#${toggle.dataset.otherInputId}`);
+            }
+
+            return toggle.closest('[data-other-option]')?.querySelector('[data-other-input-field]');
         };
 
-        const updateOtherInputState = (toggle, shouldFocus = false) => {
+        const updateOtherInputState = (toggle, autoFocus = false) => {
             const input = getOtherInput(toggle);
 
             if (!input) {
@@ -34,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (shouldFocus) {
+            if (autoFocus) {
                 input.focus();
             }
         };

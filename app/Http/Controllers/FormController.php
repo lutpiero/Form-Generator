@@ -113,7 +113,7 @@ class FormController extends Controller
 
         $validator = Validator::make($request->all(), $rules, $messages, $attributes);
 
-        $validator->after(function ($validator) use ($form, $request) {
+        $validator->after(function ($validation) use ($form, $request) {
             foreach ($form->fields as $field) {
                 if ($field->type !== 'table') {
                     continue;
@@ -147,7 +147,7 @@ class FormController extends Controller
                         $otherValue = trim((string) ($row[$otherInputKey] ?? ''));
 
                         if ($otherValue === '') {
-                            $validator->errors()->add(
+                            $validation->errors()->add(
                                 "table_fields.{$field->id}.{$rowIndex}.{$otherInputKey}",
                                 'Please enter a value for ' . ($column['other_label'] ?? FormField::DEFAULT_OTHER_LABEL) . '.'
                             );

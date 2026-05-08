@@ -96,6 +96,7 @@
                                     value="{{ \App\Models\FormField::OTHER_OPTION_VALUE }}"
                                     id="{{ $otherInputId }}_toggle"
                                     data-other-toggle
+                                    data-other-input-id="{{ $otherInputId }}"
                                     {{ $otherChecked ? 'checked' : '' }}
                                 >
                                 <label class="form-check-label small" for="{{ $otherInputId }}_toggle">{{ $column['other_label'] }}</label>
