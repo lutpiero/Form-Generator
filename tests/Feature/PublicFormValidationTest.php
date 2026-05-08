@@ -115,6 +115,81 @@ class PublicFormValidationTest extends TestCase
         $this->assertDatabaseCount('form_submissions', 0);
     }
 
+    public function test_form_with_special_character_field_name_renders_correct_ids(): void
+    {
+        // Field names derived from labels like "(boleh pilih lebih dari 1)" produce
+        // names like "(boleh_pilih_lebih_dari1)" which contain CSS-selector special
+        // characters.  The HTML must emit the raw name as the element id so that
+        // getElementById() (used in form-validation.js) can locate it safely.
+        $form = Form::create([
+            'name' => 'Special Char Form',
+            'description' => '',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $specialName = '(boleh_pilih_lebih_dari1)';
+        $form->fields()->create([
+            'label' => 'Pilihan',
+            'name' => $specialName,
+            'type' => 'checkbox',
+            'options' => json_encode(['Option A', FormField::OTHER_OPTION_VALUE]),
+            'config' => ['other_label' => 'Lainnya'],
+            'required' => false,
+            'order' => 0,
+        ]);
+
+        $response = $this->get(route('forms.show', $form));
+
+        $response->assertOk();
+
+        // The "other" text input must have the raw id (with parens) so getElementById works.
+        $otherId = $specialName . '_other';
+        $response->assertSee('id="' . $otherId . '"', false);
+
+        // The toggle checkbox must carry data-other-input-id pointing to that id.
+        $response->assertSee('data-other-input-id="' . $otherId . '"', false);
+
+        // The page must NOT contain a querySelector call using a CSS #id selector
+        // built from a dynamic value (which would break on special characters).
+        $response->assertDontSee('querySelector(`#${', false);
+        $response->assertDontSee("querySelector('#' +", false);
+    }
+
+    public function test_form_with_special_character_field_name_accepts_other_submission(): void
+    {
+        $form = Form::create([
+            'name' => 'Special Char Form',
+            'description' => '',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $specialName = '(boleh_pilih_lebih_dari1)';
+        $form->fields()->create([
+            'label' => 'Pilihan',
+            'name' => $specialName,
+            'type' => 'checkbox',
+            'options' => json_encode(['Option A', FormField::OTHER_OPTION_VALUE]),
+            'config' => ['other_label' => 'Lainnya'],
+            'required' => false,
+            'order' => 0,
+        ]);
+
+        $response = $this->post(route('forms.submit', $form), [
+            $specialName => [FormField::OTHER_OPTION_VALUE],
+            $specialName . '_other' => 'Custom answer',
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+
+        $submission = FormSubmission::first();
+        $this->assertNotNull($submission);
+        $this->assertSame(['other:Custom answer'], $submission->data[$specialName]);
+    }
+
     private function createCheckboxField(array $overrides = []): FormField
     {
         $form = Form::create([
