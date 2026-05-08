@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const getOtherInput = (toggle) => {
             if (toggle.dataset.otherInputId) {
-                return form.querySelector(`#${toggle.dataset.otherInputId}`);
+                return document.getElementById(toggle.dataset.otherInputId);
             }
 
             return toggle.closest('[data-other-option]')?.querySelector('[data-other-input-field]');
