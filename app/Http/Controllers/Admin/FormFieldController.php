@@ -116,7 +116,7 @@ class FormFieldController extends Controller
             return null;
         }
 
-        $optionsArray = $this->parseOptions($options);
+        $optionsArray = FormField::normalizeOptions($type, $options);
         $optionsArray = array_values(array_filter(
             $optionsArray,
             fn ($option) => $option !== FormField::OTHER_OPTION_VALUE
@@ -157,7 +157,7 @@ class FormFieldController extends Controller
                 'label' => $label,
                 'type' => $columnType,
                 'required' => !empty($column['required']),
-                'options' => $this->parseOptions($column['options'] ?? null, $columnType),
+                'options' => FormField::normalizeOptions($columnType, $column['options'] ?? null),
             ];
         }
 
@@ -172,23 +172,6 @@ class FormFieldController extends Controller
             'columns' => $columns,
         ];
     }
-
-    private function parseOptions(mixed $options, ?string $type = null): array
-    {
-        if ($type !== null && !in_array($type, FormField::OPTION_BASED_TYPES, true)) {
-            return [];
-        }
-
-        $values = is_array($options)
-            ? $options
-            : preg_split('/\r\n|\r|\n/', (string) $options);
-
-        return array_values(array_filter(array_map(
-            fn ($option) => trim((string) $option),
-            is_array($values) ? $values : []
-        ), fn ($option) => $option !== ''));
-    }
-
     private function ensureUniqueColumnKey(string $key, array $columns): string
     {
         $existingKeys = array_column($columns, 'key');

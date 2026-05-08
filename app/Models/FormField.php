@@ -85,7 +85,7 @@ class FormField extends Model
                 'label' => is_string($column['label'] ?? null) ? $column['label'] : '',
                 'type' => $type,
                 'required' => !empty($column['required']),
-                'options' => $this->normalizeOptions($type, $column['options'] ?? []),
+                'options' => self::normalizeOptions($type, $column['options'] ?? []),
             ];
         }, $columns)));
     }
@@ -187,7 +187,7 @@ class FormField extends Model
         return $rows !== '' ? $rows : '—';
     }
 
-    protected function normalizeOptions(string $type, mixed $options): array
+    public static function normalizeOptions(string $type, mixed $options): array
     {
         if (!in_array($type, self::OPTION_BASED_TYPES, true)) {
             return [];
@@ -197,9 +197,10 @@ class FormField extends Model
             ? $options
             : preg_split('/\r\n|\r|\n/', (string) $options);
 
-        return array_values(array_filter(array_map(
-            fn ($option) => trim((string) $option),
-            is_array($values) ? $values : []
-        ), fn ($option) => $option !== ''));
+        return collect(is_array($values) ? $values : [])
+            ->map(fn ($option) => trim((string) $option))
+            ->filter(fn ($option) => $option !== '')
+            ->values()
+            ->all();
     }
 }

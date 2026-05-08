@@ -190,6 +190,7 @@ class TableFieldTest extends TestCase
         $response->assertSee('Radio 1');
         $response->assertSee("yes\nno", false);
         $this->assertSame(1, substr_count($response->getContent(), 'id="customAnswerGroup"'));
+        $this->assertStringContainsString('id="customAnswerGroup" style="display:none"', $response->getContent());
     }
 
     protected function tableFieldAttributes(): array
