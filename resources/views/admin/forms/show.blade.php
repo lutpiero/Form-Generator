@@ -146,6 +146,8 @@
                 'X-CSRF-TOKEN': csrfToken,
             },
             body: JSON.stringify({ fields: getFieldOrder() }),
+        }).catch(function () {
+            console.error('Failed to save field order. Please reload the page and try again.');
         });
     }
 
