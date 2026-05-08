@@ -162,6 +162,36 @@ class TableFieldTest extends TestCase
         $this->assertStringContainsString('Row 1: Item Name: Fuse Box; Radio 1: yes', $exportResponse->streamedContent());
     }
 
+    public function test_admin_field_form_re_renders_table_option_textareas_after_validation_failure(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->followingRedirects()
+            ->from(route('admin.forms.fields.create', $form))
+            ->post(route('admin.forms.fields.store', $form), [
+                'label' => '',
+                'type' => 'table',
+                'config' => [
+                    'columns' => [
+                        ['label' => 'Radio 1', 'type' => 'radio', 'options' => "yes\nno"],
+                    ],
+                ],
+            ]);
+
+        $response->assertOk();
+        $response->assertSee('Radio 1');
+        $response->assertSee("yes\nno", false);
+        $this->assertSame(1, substr_count($response->getContent(), 'id="customAnswerGroup"'));
+    }
+
     protected function tableFieldAttributes(): array
     {
         return [

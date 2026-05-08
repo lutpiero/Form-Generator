@@ -20,18 +20,28 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,section',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,table,section',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
             'options' => 'nullable|string',
             'allow_custom_answer' => 'boolean',
+            'config.auto_number' => 'sometimes|boolean',
+            'config.columns' => 'nullable|array',
+            'config.columns.*.label' => 'nullable|string|max:255',
+            'config.columns.*.key' => 'nullable|string|max:255',
+            'config.columns.*.type' => 'nullable|in:text,email,phone,number,textarea,dropdown,radio,checkbox',
+            'config.columns.*.required' => 'sometimes|boolean',
+            'config.columns.*.options' => 'nullable',
         ]);
 
         $validated['form_id'] = $form->id;
         $validated['name'] = Str::snake(Str::lower($validated['label']));
         $validated['order'] = $form->fields()->count();
+        $validated['required'] = !in_array($validated['type'], ['section', 'table'], true)
+            && $request->boolean('required', false);
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
+        $validated['config'] = $this->prepareConfig($request, $validated['type']);
         unset($validated['allow_custom_answer']);
 
         $form->fields()->create($validated);
@@ -49,18 +59,27 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,section',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,table,section',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
             'options' => 'nullable|string',
             'order' => 'nullable|integer',
             'allow_custom_answer' => 'boolean',
+            'config.auto_number' => 'sometimes|boolean',
+            'config.columns' => 'nullable|array',
+            'config.columns.*.label' => 'nullable|string|max:255',
+            'config.columns.*.key' => 'nullable|string|max:255',
+            'config.columns.*.type' => 'nullable|in:text,email,phone,number,textarea,dropdown,radio,checkbox',
+            'config.columns.*.required' => 'sometimes|boolean',
+            'config.columns.*.options' => 'nullable',
         ]);
 
         $validated['name'] = Str::snake(Str::lower($validated['label']));
-        $validated['required'] = $validated['type'] === 'section' ? false : $request->boolean('required', false);
+        $validated['required'] = !in_array($validated['type'], ['section', 'table'], true)
+            && $request->boolean('required', false);
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
+        $validated['config'] = $this->prepareConfig($request, $validated['type']);
         unset($validated['allow_custom_answer']);
 
         $field->update($validated);
@@ -93,11 +112,11 @@ class FormFieldController extends Controller
 
     private function prepareOptions(Request $request, string $type, ?string $options): ?string
     {
-        if (!in_array($type, ['dropdown', 'radio', 'checkbox'], true)) {
+        if (!in_array($type, FormField::OPTION_BASED_TYPES, true)) {
             return null;
         }
 
-        $optionsArray = array_values(array_filter(array_map('trim', explode("\n", (string) $options))));
+        $optionsArray = $this->parseOptions($options);
         $optionsArray = array_values(array_filter(
             $optionsArray,
             fn ($option) => $option !== FormField::OTHER_OPTION_VALUE
@@ -108,5 +127,79 @@ class FormFieldController extends Controller
         }
 
         return empty($optionsArray) ? null : json_encode(array_values(array_unique($optionsArray)));
+    }
+
+    private function prepareConfig(Request $request, string $type): ?array
+    {
+        if ($type !== 'table') {
+            return null;
+        }
+
+        $columns = [];
+        foreach ((array) $request->input('config.columns', []) as $index => $column) {
+            if (!is_array($column)) {
+                continue;
+            }
+
+            $label = trim((string) ($column['label'] ?? ''));
+            $columnType = $column['type'] ?? 'text';
+
+            if ($label === '' || !in_array($columnType, FormField::TABLE_COLUMN_TYPES, true)) {
+                continue;
+            }
+
+            $baseKey = Str::snake(trim((string) ($column['key'] ?? $label)));
+            $key = $baseKey !== '' ? $baseKey : 'column_'.($index + 1);
+            $key = $this->ensureUniqueColumnKey($key, $columns);
+
+            $columns[] = [
+                'key' => $key,
+                'label' => $label,
+                'type' => $columnType,
+                'required' => !empty($column['required']),
+                'options' => $this->parseOptions($column['options'] ?? null, $columnType),
+            ];
+        }
+
+        if ($columns === []) {
+            throw ValidationException::withMessages([
+                'config.columns' => 'Please add at least one table column.',
+            ]);
+        }
+
+        return [
+            'auto_number' => $request->boolean('config.auto_number', false),
+            'columns' => $columns,
+        ];
+    }
+
+    private function parseOptions(mixed $options, ?string $type = null): array
+    {
+        if ($type !== null && !in_array($type, FormField::OPTION_BASED_TYPES, true)) {
+            return [];
+        }
+
+        $values = is_array($options)
+            ? $options
+            : preg_split('/\r\n|\r|\n/', (string) $options);
+
+        return array_values(array_filter(array_map(
+            fn ($option) => trim((string) $option),
+            is_array($values) ? $values : []
+        ), fn ($option) => $option !== ''));
+    }
+
+    private function ensureUniqueColumnKey(string $key, array $columns): string
+    {
+        $existingKeys = array_column($columns, 'key');
+        $uniqueKey = $key;
+        $suffix = 2;
+
+        while (in_array($uniqueKey, $existingKeys, true)) {
+            $uniqueKey = "{$key}_{$suffix}";
+            $suffix++;
+        }
+
+        return $uniqueKey;
     }
 }

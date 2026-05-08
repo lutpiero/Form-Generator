@@ -58,6 +58,12 @@ class FormController extends Controller
             if ($field->type === 'section') {
                 continue;
             }
+
+            if ($field->type === 'table') {
+                $rules = array_merge($rules, $this->buildTableFieldRules($field));
+                continue;
+            }
+
             $attributes[$field->name] = $field->label;
 
             $fieldRules = [$field->required ? 'required' : 'nullable'];
@@ -112,6 +118,12 @@ class FormController extends Controller
                 continue;
             }
 
+            if ($field->type === 'table') {
+                $tableRows = $validated['table_fields'][$field->id] ?? [];
+                $data[$field->name] = $this->normalizeTableRows($field, is_array($tableRows) ? $tableRows : []);
+                continue;
+            }
+
             $value = $validated[$field->name] ?? null;
 
             if ($field->type === 'checkbox') {
@@ -153,7 +165,7 @@ class FormController extends Controller
     protected function buildTableFieldRules(FormField $field): array
     {
         $rules = [
-            "table_fields.{$field->id}" => ['required', 'array', 'min:1'],
+            "table_fields.{$field->id}" => $field->required ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
         ];
 
         foreach ($field->table_columns as $column) {
@@ -166,7 +178,7 @@ class FormController extends Controller
                     $columnRules[] = 'email';
                     break;
                 case 'phone':
-                    $columnRules[] = 'regex:/'.FormField::PHONE_REGEX_PATTERN.'/';
+                    $columnRules[] = 'regex:/'.FormField::PHONE_PATTERN.'/';
                     break;
                 case 'number':
                     $columnRules[] = 'numeric';
