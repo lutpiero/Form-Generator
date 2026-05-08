@@ -32,7 +32,7 @@ class SubmissionController extends Controller
     public function export(Form $form)
     {
         $submissions = $form->submissions()->latest()->get();
-        $fields = $form->fields;
+        $fields = $form->fields->filter(fn ($f) => $f->type !== 'section');
 
         $headers = [
             'Content-Type' => 'text/csv',

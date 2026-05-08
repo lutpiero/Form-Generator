@@ -86,10 +86,10 @@
                                     <th></th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="fields-table-body">
                                 @foreach($form->fields as $field)
-                                <tr>
-                                    <td class="text-muted">{{ $loop->iteration }}</td>
+                                <tr data-field-id="{{ $field->id }}">
+                                    <td class="text-muted" data-field-order-num>{{ $loop->iteration }}</td>
                                     <td>{{ $field->label }}</td>
                                     <td><span class="badge bg-secondary">{{ $field->type }}</span></td>
                                     <td>
@@ -101,6 +101,8 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-outline-secondary js-field-move-up" title="Move up"><i class="bi bi-arrow-up"></i></button>
+                                            <button type="button" class="btn btn-outline-secondary js-field-move-down" title="Move down"><i class="bi bi-arrow-down"></i></button>
                                             <a href="{{ route('admin.forms.fields.edit', [$form, $field]) }}" class="btn btn-outline-secondary">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
@@ -115,6 +117,59 @@
                             </tbody>
                         </table>
                     </div>
+@push('scripts')
+<script>
+(function () {
+    var tbody = document.getElementById('fields-table-body');
+    if (!tbody) return;
+
+    var reorderUrl = @js(route('admin.forms.fields.reorder', $form));
+    var csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+    function getFieldOrder() {
+        return Array.from(tbody.querySelectorAll('tr[data-field-id]'))
+            .map(function (tr) { return parseInt(tr.dataset.fieldId, 10); });
+    }
+
+    function refreshRowNumbers() {
+        Array.from(tbody.querySelectorAll('tr[data-field-id]')).forEach(function (tr, i) {
+            var numCell = tr.querySelector('[data-field-order-num]');
+            if (numCell) numCell.textContent = i + 1;
+        });
+    }
+
+    function saveOrder() {
+        fetch(reorderUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+            },
+            body: JSON.stringify({ fields: getFieldOrder() }),
+        });
+    }
+
+    tbody.addEventListener('click', function (event) {
+        var upBtn = event.target.closest('.js-field-move-up');
+        var downBtn = event.target.closest('.js-field-move-down');
+
+        if (!upBtn && !downBtn) return;
+
+        var row = (upBtn || downBtn).closest('tr[data-field-id]');
+        if (!row) return;
+
+        if (upBtn && row.previousElementSibling) {
+            tbody.insertBefore(row, row.previousElementSibling);
+        } else if (downBtn && row.nextElementSibling) {
+            tbody.insertBefore(row.nextElementSibling, row);
+        }
+
+        refreshRowNumbers();
+        saveOrder();
+    });
+})();
+</script>
+@endpush
                 @endif
             </div>
         </div>

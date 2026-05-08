@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Form;
 use App\Models\FormField;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class FormFieldController extends Controller
@@ -39,7 +38,7 @@ class FormFieldController extends Controller
         ]);
 
         $validated['form_id'] = $form->id;
-        $validated['name'] = Str::snake(Str::lower($validated['label']));
+        $validated['name'] = $this->sanitizeName($validated['label']);
         $validated['order'] = $form->fields()->count();
         $validated['required'] = !in_array($validated['type'], ['section', 'table'], true)
             && $request->boolean('required', false);
@@ -81,7 +80,7 @@ class FormFieldController extends Controller
             'config.columns.*.options' => 'nullable',
         ]);
 
-        $validated['name'] = Str::snake(Str::lower($validated['label']));
+        $validated['name'] = $this->sanitizeName($validated['label']);
         $validated['required'] = !in_array($validated['type'], ['section', 'table'], true)
             && $request->boolean('required', false);
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
@@ -160,7 +159,7 @@ class FormFieldController extends Controller
                 continue;
             }
 
-            $baseKey = Str::snake(trim((string) ($column['key'] ?? $label)));
+            $baseKey = $this->sanitizeName((string) ($column['key'] ?? $label));
             $key = $baseKey !== '' ? $baseKey : 'column_'.($index + 1);
             $key = $this->ensureUniqueColumnKey($key, $columns);
 
@@ -203,5 +202,14 @@ class FormFieldController extends Controller
         }
 
         return $uniqueKey;
+    }
+
+    private function sanitizeName(string $label): string
+    {
+        $name = strtolower(trim($label));
+        $name = preg_replace('/[^a-z0-9]+/', '_', $name);
+        $name = trim($name, '_');
+
+        return $name !== '' ? $name : 'field';
     }
 }

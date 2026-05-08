@@ -25,6 +25,7 @@
                     </thead>
                     <tbody>
                         @foreach($form->fields as $field)
+                        @if($field->type !== 'section')
                         <tr>
                             <td class="fw-semibold">{{ $field->label }}</td>
                             <td>
@@ -36,6 +37,7 @@
                                 @endif
                             </td>
                         </tr>
+                        @endif
                         @endforeach
                     </tbody>
                 </table>
