@@ -12,9 +12,14 @@
         </h5>
         <div class="d-flex gap-2">
             @if($submissions->total() > 0)
-                <a href="{{ route('admin.forms.submissions.export', $form) }}" class="btn btn-sm btn-success">
-                    <i class="bi bi-download"></i> Export CSV
-                </a>
+                <div class="btn-group btn-group-sm">
+                    <a href="{{ route('admin.forms.submissions.export', $form) }}" class="btn btn-success">
+                        <i class="bi bi-download"></i> Export CSV
+                    </a>
+                    <a href="{{ route('admin.forms.submissions.export-excel', $form) }}" class="btn btn-success">
+                        <i class="bi bi-file-earmark-excel"></i> Export Excel
+                    </a>
+                </div>
             @endif
             <a href="{{ route('admin.forms.show', $form) }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Form
