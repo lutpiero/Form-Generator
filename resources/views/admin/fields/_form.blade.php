@@ -143,6 +143,45 @@
                                 @error("config.columns.$index.other_label")<div class="invalid-feedback">{{ $message }}</div>@enderror
                             </div>
                         </div>
+                        @php
+                            $columnVisibilityRule = is_array($column['visibility'] ?? null) ? $column['visibility'] : [];
+                            $columnVisibilityEnabled = !empty($columnVisibilityRule['enabled']);
+                            $columnVisibilityField = $columnVisibilityRule['field'] ?? '';
+                            $columnVisibilityOperator = $columnVisibilityRule['operator'] ?? 'equals';
+                            $columnVisibilityValue = $columnVisibilityRule['value'] ?? '';
+                        @endphp
+                        <div class="col-12 column-visibility-group border rounded p-3 bg-white">
+                            <h6 class="mb-3">Conditional Visibility</h6>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" name="config[columns][{{ $index }}][visibility][enabled]" value="1"
+                                       data-column-visibility-enabled {{ $columnVisibilityEnabled ? 'checked' : '' }}>
+                                <label class="form-check-label">Enable conditional visibility</label>
+                            </div>
+                            <div class="column-visibility-details" style="{{ $columnVisibilityEnabled ? '' : 'display:none' }}">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Controlling column</label>
+                                    <select name="config[columns][{{ $index }}][visibility][field]"
+                                            class="form-select"
+                                            data-column-visibility-field
+                                            data-selected-value="{{ $columnVisibilityField }}">
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Operator</label>
+                                    <select name="config[columns][{{ $index }}][visibility][operator]" class="form-select" data-column-visibility-operator>
+                                        <option value="equals" {{ $columnVisibilityOperator === 'equals' ? 'selected' : '' }}>equals</option>
+                                        <option value="not_equals" {{ $columnVisibilityOperator === 'not_equals' ? 'selected' : '' }}>not equals</option>
+                                        <option value="is_empty" {{ $columnVisibilityOperator === 'is_empty' ? 'selected' : '' }}>is empty</option>
+                                        <option value="is_not_empty" {{ $columnVisibilityOperator === 'is_not_empty' ? 'selected' : '' }}>is not empty</option>
+                                    </select>
+                                </div>
+                                <div class="column-visibility-value-group" style="{{ in_array($columnVisibilityOperator, ['is_empty', 'is_not_empty'], true) ? 'display:none' : '' }}">
+                                    <label class="form-label fw-semibold">Expected value</label>
+                                    <input type="text" name="config[columns][{{ $index }}][visibility][value]" class="form-control"
+                                           value="{{ $columnVisibilityValue }}" data-column-visibility-value placeholder="e.g. yes">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -201,6 +240,34 @@
                                    data-name-template="config[columns][__INDEX__][other_label]">
                         </div>
                     </div>
+                    <div class="col-12 column-visibility-group border rounded p-3 bg-white">
+                        <h6 class="mb-3">Conditional Visibility</h6>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" value="1" data-name-template="config[columns][__INDEX__][visibility][enabled]" data-column-visibility-enabled>
+                            <label class="form-check-label">Enable conditional visibility</label>
+                        </div>
+                        <div class="column-visibility-details" style="display:none">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Controlling column</label>
+                                <select class="form-select" data-name-template="config[columns][__INDEX__][visibility][field]" data-column-visibility-field></select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Operator</label>
+                                <select class="form-select" data-name-template="config[columns][__INDEX__][visibility][operator]" data-column-visibility-operator>
+                                    <option value="equals">equals</option>
+                                    <option value="not_equals">not equals</option>
+                                    <option value="is_empty">is empty</option>
+                                    <option value="is_not_empty">is not empty</option>
+                                </select>
+                            </div>
+                            <div class="column-visibility-value-group">
+                                <label class="form-label fw-semibold">Expected value</label>
+                                <input type="text" class="form-control" placeholder="e.g. yes"
+                                       data-name-template="config[columns][__INDEX__][visibility][value]"
+                                       data-column-visibility-value>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -254,11 +321,13 @@
             <select name="visibility[operator]" id="visibility_operator" class="form-select @error('visibility.operator') is-invalid @enderror">
                 <option value="equals" {{ $visibilityOperator === 'equals' ? 'selected' : '' }}>equals</option>
                 <option value="not_equals" {{ $visibilityOperator === 'not_equals' ? 'selected' : '' }}>not equals</option>
+                <option value="is_empty" {{ $visibilityOperator === 'is_empty' ? 'selected' : '' }}>is empty</option>
+                <option value="is_not_empty" {{ $visibilityOperator === 'is_not_empty' ? 'selected' : '' }}>is not empty</option>
             </select>
             @error('visibility.operator')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
 
-        <div>
+        <div id="visibilityValueGroup" style="{{ in_array($visibilityOperator, ['is_empty', 'is_not_empty'], true) ? 'display:none' : '' }}">
             <label class="form-label fw-semibold" for="visibility_value">Expected value</label>
             <input type="text" name="visibility[value]" id="visibility_value" class="form-control @error('visibility.value') is-invalid @enderror"
                    value="{{ $visibilityValue }}" placeholder="e.g. employed">
@@ -280,6 +349,8 @@
     var visibilityConfigGroup = document.getElementById('visibilityConfigGroup');
     var visibilityEnabled = document.getElementById('visibility_enabled');
     var visibilityDetailsGroup = document.getElementById('visibilityDetailsGroup');
+    var visibilityOperator = document.getElementById('visibility_operator');
+    var visibilityValueGroup = document.getElementById('visibilityValueGroup');
     var placeholderGroup = document.getElementById('placeholderGroup');
     var placeholderLabel = document.getElementById('placeholderLabel');
     var placeholderInput = document.getElementById('placeholderInput');
@@ -317,6 +388,66 @@
         }
     }
 
+    function updateVisibilityValueGroup(operatorElement, valueGroupElement) {
+        if (!operatorElement || !valueGroupElement) {
+            return;
+        }
+
+        valueGroupElement.style.display = ['is_empty', 'is_not_empty'].includes(operatorElement.value) ? 'none' : '';
+    }
+
+    function updateColumnVisibilityState(columnItem) {
+        var enabledToggle = columnItem.querySelector('[data-column-visibility-enabled]');
+        var detailsGroup = columnItem.querySelector('.column-visibility-details');
+        var operatorElement = columnItem.querySelector('[data-column-visibility-operator]');
+        var valueGroupElement = columnItem.querySelector('.column-visibility-value-group');
+
+        if (detailsGroup) {
+            detailsGroup.style.display = enabledToggle && enabledToggle.checked ? '' : 'none';
+        }
+
+        updateVisibilityValueGroup(operatorElement, valueGroupElement);
+    }
+
+    function refreshColumnVisibilityOptions() {
+        var columnItems = Array.from(columnsContainer.querySelectorAll('.table-column-item'));
+
+        columnItems.forEach(function(columnItem) {
+            var currentKeyInput = columnItem.querySelector('[data-column-key]');
+            var currentKey = currentKeyInput ? currentKeyInput.value : '';
+            var select = columnItem.querySelector('[data-column-visibility-field]');
+
+            if (!select) {
+                return;
+            }
+
+            var selectedValue = select.value || select.dataset.selectedValue || '';
+            var options = ['<option value="">Select a column</option>'];
+
+            columnItems.forEach(function(item) {
+                var keyInput = item.querySelector('[data-column-key]');
+                var labelInput = item.querySelector('[data-column-label]');
+                var key = keyInput ? keyInput.value : '';
+
+                if (!key || key === currentKey) {
+                    return;
+                }
+
+                var label = labelInput && labelInput.value ? labelInput.value : key;
+                options.push('<option value="' + key + '">' + label + ' (' + key + ')</option>');
+            });
+
+            select.innerHTML = options.join('');
+            if (selectedValue && select.querySelector('option[value="' + selectedValue + '"]')) {
+                select.value = selectedValue;
+            } else {
+                select.value = '';
+            }
+
+            select.dataset.selectedValue = select.value;
+        });
+    }
+
     function updateColumnCard(columnItem, index) {
         columnItem.querySelectorAll('[data-name-template]').forEach(function(element) {
             element.name = element.dataset.nameTemplate.replace(/__INDEX__/g, index);
@@ -345,12 +476,14 @@
         }
 
         updateColumnOptions(columnItem);
+        updateColumnVisibilityState(columnItem);
     }
 
     function refreshColumnIndexes() {
         Array.from(columnsContainer.querySelectorAll('.table-column-item')).forEach(function(columnItem, index) {
             updateColumnCard(columnItem, index);
         });
+        refreshColumnVisibilityOptions();
     }
 
     function shouldRegenerateKey(keyInput, previousLabel) {
@@ -422,6 +555,12 @@
         });
     }
 
+    if (visibilityOperator) {
+        visibilityOperator.addEventListener('change', function() {
+            updateVisibilityValueGroup(visibilityOperator, visibilityValueGroup);
+        });
+    }
+
     if (addTableColumnButton) {
         addTableColumnButton.addEventListener('click', createColumn);
     }
@@ -473,10 +612,18 @@
             if (columnItem && (event.target.matches('[data-column-type]') || event.target.matches('[data-column-custom-answer]'))) {
                 updateColumnOptions(columnItem);
             }
+
+            if (columnItem && event.target.matches('[data-column-visibility-enabled], [data-column-visibility-operator], [data-column-visibility-field]')) {
+                if (event.target.matches('[data-column-visibility-field]')) {
+                    event.target.dataset.selectedValue = event.target.value;
+                }
+                updateColumnVisibilityState(columnItem);
+            }
         });
     }
 
     refreshColumnIndexes();
+    updateVisibilityValueGroup(visibilityOperator, visibilityValueGroup);
     updateFieldVisibility(fieldType.value);
 })();
 </script>

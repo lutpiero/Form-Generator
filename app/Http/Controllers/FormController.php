@@ -134,36 +134,7 @@ class FormController extends Controller
                     continue;
                 }
 
-                foreach ($rows as $rowIndex => $row) {
-                    if (!is_array($row)) {
-                        continue;
-                    }
-
-                    foreach ($field->table_columns as $column) {
-                        if ($column['type'] !== 'checkbox' || empty($column['allow_custom_answer'])) {
-                            continue;
-                        }
-
-                        $selectedValues = array_values(array_filter(
-                            (array) ($row[$column['key']] ?? []),
-                            fn ($item) => $item !== null && $item !== ''
-                        ));
-
-                        if (!in_array(FormField::OTHER_OPTION_VALUE, $selectedValues, true)) {
-                            continue;
-                        }
-
-                        $otherInputKey = $this->tableOtherInputKey($column['key']);
-                        $otherValue = trim((string) ($row[$otherInputKey] ?? ''));
-
-                        if ($otherValue === '') {
-                            $validation->errors()->add(
-                                "table_fields.{$field->id}.{$rowIndex}.{$otherInputKey}",
-                                'Please enter a value for ' . ($column['other_label'] ?? FormField::DEFAULT_OTHER_LABEL) . '.'
-                            );
-                        }
-                    }
-                }
+                $this->validateTableRows($validation, $field, $rows);
             }
         });
 
@@ -229,55 +200,9 @@ class FormController extends Controller
 
     protected function buildTableFieldRules(FormField $field): array
     {
-        $rules = [
+        return [
             "table_fields.{$field->id}" => $field->required ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
         ];
-
-        foreach ($field->table_columns as $column) {
-            $key = $column['key'];
-            $columnRules = ($column['required'] ?? false) ? ['required'] : ['nullable'];
-
-            switch ($column['type']) {
-                case 'email':
-                    $columnRules[] = 'string';
-                    $columnRules[] = 'email';
-                    break;
-                case 'phone':
-                    $columnRules[] = 'regex:/'.FormField::PHONE_PATTERN.'/';
-                    break;
-                case 'number':
-                    $columnRules[] = 'numeric';
-                    break;
-                case 'dropdown':
-                case 'radio':
-                    $columnRules[] = 'string';
-                    if (!empty($column['options'])) {
-                        $columnRules[] = Rule::in($column['options']);
-                    }
-                    break;
-                case 'checkbox':
-                    $columnRules[] = 'array';
-                    if ($column['required'] ?? false) {
-                        $columnRules[] = 'min:1';
-                    }
-                    $checkboxOptions = $column['options'] ?? [];
-                    if (!empty($column['allow_custom_answer'])) {
-                        $checkboxOptions[] = FormField::OTHER_OPTION_VALUE;
-                        $rules["table_fields.{$field->id}.*." . $this->tableOtherInputKey($key)] = ['nullable', 'string', 'max:255'];
-                    }
-                    if ($checkboxOptions !== []) {
-                        $rules["table_fields.{$field->id}.*.{$key}.*"] = ['string', Rule::in($checkboxOptions)];
-                    }
-                    break;
-                default:
-                    $columnRules[] = 'string';
-                    break;
-            }
-
-            $rules["table_fields.{$field->id}.*.{$key}"] = $columnRules;
-        }
-
-        return $rules;
     }
 
     protected function normalizeTableRows(FormField $field, array $rows): array
@@ -289,6 +214,10 @@ class FormController extends Controller
             $hasValue = false;
 
             foreach ($field->table_columns as $column) {
+                if (!FormField::isTableColumnVisible($column, $row)) {
+                    continue;
+                }
+
                 $key = $column['key'];
                 $value = $row[$key] ?? null;
 
@@ -303,7 +232,11 @@ class FormController extends Controller
                     }
                     $hasValue = $hasValue || $value !== [];
                 } else {
-                    $value = is_string($value) ? trim($value) : $value;
+                    if (is_array($value)) {
+                        $value = null;
+                    } elseif (is_string($value)) {
+                        $value = trim($value);
+                    }
                     $hasValue = $hasValue || !in_array($value, [null, ''], true);
                 }
 
@@ -333,10 +266,132 @@ class FormController extends Controller
 
         $controllerField = $fieldsById->get($visibilityRule['field_id']);
 
-        if (!$controllerField || !in_array($controllerField->type, FormField::VISIBILITY_CONTROLLER_TYPES, true)) {
+        if (!$controllerField || in_array($controllerField->type, ['section', 'table'], true)) {
             return true;
         }
 
         return $field->passesVisibilityCondition($request->input($controllerField->name));
+    }
+
+    protected function validateTableRows($validation, FormField $field, array $rows): void
+    {
+        foreach ($rows as $rowIndex => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            foreach ($field->table_columns as $column) {
+                if (!FormField::isTableColumnVisible($column, $row)) {
+                    continue;
+                }
+
+                $columnKey = $column['key'];
+                $value = $row[$columnKey] ?? null;
+                $path = "table_fields.{$field->id}.{$rowIndex}.{$columnKey}";
+
+                if (($column['required'] ?? false) && $this->tableColumnValueIsEmpty($column, $value)) {
+                    $validation->errors()->add($path, 'This field is required.');
+                    continue;
+                }
+
+                if ($this->tableColumnValueIsEmpty($column, $value)) {
+                    continue;
+                }
+
+                if (!$this->tableColumnValueIsValid($column, $value)) {
+                    $validation->errors()->add($path, $this->tableColumnValidationMessage($column));
+                    continue;
+                }
+
+                if ($column['type'] === 'checkbox' && !empty($column['allow_custom_answer'])) {
+                    $selectedValues = array_values(array_filter(
+                        (array) $value,
+                        fn ($item) => $item !== null && $item !== ''
+                    ));
+
+                    if (in_array(FormField::OTHER_OPTION_VALUE, $selectedValues, true)) {
+                        $otherInputKey = $this->tableOtherInputKey($columnKey);
+                        $otherValue = trim((string) ($row[$otherInputKey] ?? ''));
+
+                        if ($otherValue === '') {
+                            $validation->errors()->add(
+                                "table_fields.{$field->id}.{$rowIndex}.{$otherInputKey}",
+                                'Please enter a value for ' . ($column['other_label'] ?? FormField::DEFAULT_OTHER_LABEL) . '.'
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    protected function tableColumnValueIsEmpty(array $column, mixed $value): bool
+    {
+        if ($column['type'] === 'checkbox') {
+            return array_values(array_filter((array) $value, fn ($item) => $item !== null && $item !== '')) === [];
+        }
+
+        if (is_array($value)) {
+            return $value === [];
+        }
+
+        return trim((string) ($value ?? '')) === '';
+    }
+
+    protected function tableColumnValueIsValid(array $column, mixed $value): bool
+    {
+        switch ($column['type']) {
+            case 'email':
+                if (is_array($value)) {
+                    return false;
+                }
+                return filter_var((string) $value, FILTER_VALIDATE_EMAIL) !== false;
+            case 'phone':
+                if (is_array($value)) {
+                    return false;
+                }
+                return preg_match('/' . FormField::PHONE_PATTERN . '/', (string) $value) === 1;
+            case 'number':
+                if (is_array($value)) {
+                    return false;
+                }
+                return is_numeric($value);
+            case 'dropdown':
+            case 'radio':
+                if (is_array($value)) {
+                    return false;
+                }
+                return empty($column['options']) || in_array((string) $value, $column['options'], true);
+            case 'checkbox':
+                $options = $column['options'] ?? [];
+                if (!empty($column['allow_custom_answer'])) {
+                    $options[] = FormField::OTHER_OPTION_VALUE;
+                }
+
+                if ($options === []) {
+                    return true;
+                }
+
+                foreach ((array) $value as $item) {
+                    if (!in_array((string) $item, $options, true)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    protected function tableColumnValidationMessage(array $column): string
+    {
+        return match ($column['type']) {
+            'email' => 'Please enter a valid email address.',
+            'phone' => 'Please enter a valid phone number.',
+            'number' => 'This field must be a number.',
+            'dropdown', 'radio', 'checkbox' => 'Please select a valid option.',
+            default => 'Invalid value.',
+        };
     }
 }

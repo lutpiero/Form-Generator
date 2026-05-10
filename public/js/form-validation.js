@@ -76,7 +76,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 return group.querySelector('select')?.value ?? '';
             }
 
-            return '';
+            if (type === 'checkbox') {
+                return Array.from(group.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map((input) => input.value)
+                    .filter((value) => value !== '');
+            }
+
+            const input = group.querySelector('input:not([type="hidden"]), textarea');
+            return input ? (input.value ?? '') : '';
+        };
+
+        const normalizeVisibilityValue = (value) => {
+            if (Array.isArray(value)) {
+                return value
+                    .map((item) => String(item ?? '').trim())
+                    .filter((item) => item !== '');
+            }
+
+            return String(value ?? '').trim();
+        };
+
+        const evaluateVisibilityCondition = (actualValue, operator, expectedValue) => {
+            const normalizedActual = normalizeVisibilityValue(actualValue);
+            const normalizedExpected = String(expectedValue ?? '').trim();
+            const equals = Array.isArray(normalizedActual)
+                ? normalizedActual.includes(normalizedExpected)
+                : normalizedActual === normalizedExpected;
+            const isEmpty = Array.isArray(normalizedActual)
+                ? normalizedActual.length === 0
+                : normalizedActual === '';
+
+            switch (operator) {
+                case 'not_equals':
+                    return !equals;
+                case 'is_empty':
+                    return isEmpty;
+                case 'is_not_empty':
+                    return !isEmpty;
+                case 'equals':
+                default:
+                    return equals;
+            }
         };
 
         const clearGroupValues = (group) => {
@@ -107,9 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const actualValue = getGroupValue(controllerGroup);
 
-            return operator === 'not_equals'
-                ? actualValue !== expectedValue
-                : actualValue === expectedValue;
+            return evaluateVisibilityCondition(actualValue, operator, expectedValue);
         };
 
         const syncGroupVisibility = (group) => {

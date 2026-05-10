@@ -16,14 +16,26 @@
             $errorMessage = $errors->first($errorKey) ?: $errors->first($errorKey.'.0') ?: $errors->first("table_fields.{$field->id}.{$rowIndex}.{$otherInputKey}");
             $isInvalid = $errorMessage !== '';
             $columnValue = $rowValues[$columnKey] ?? null;
+            $columnVisible = \App\Models\FormField::isTableColumnVisible($column, $rowValues);
+            $columnVisibility = \App\Models\FormField::normalizeColumnVisibilityRule($column['visibility'] ?? null);
+            $columnDisabledAttr = $columnVisible ? '' : 'disabled';
         @endphp
-        <td data-column-type="{{ $column['type'] }}" data-required="{{ ($column['required'] ?? false) ? '1' : '0' }}">
+        <td data-column-type="{{ $column['type'] }}"
+            data-column-key="{{ $columnKey }}"
+            data-required="{{ ($column['required'] ?? false) ? '1' : '0' }}"
+            data-visibility-enabled="{{ $columnVisibility ? 'true' : 'false' }}"
+            data-visibility-field="{{ $columnVisibility['field'] ?? '' }}"
+            data-visibility-operator="{{ $columnVisibility['operator'] ?? '' }}"
+            data-visibility-value="{{ $columnVisibility['value'] ?? '' }}"
+            data-visibility-state="{{ $columnVisible ? 'visible' : 'hidden' }}"
+            style="{{ $columnVisible ? '' : 'display:none;' }}">
             @switch($column['type'])
                 @case('textarea')
                     <textarea
                         name="{{ $baseName }}[{{ $columnKey }}]"
                         class="form-control form-control-sm {{ $isInvalid ? 'is-invalid' : '' }}"
                         rows="2"
+                        {{ $columnDisabledAttr }}
                     >{{ is_string($columnValue) ? $columnValue : '' }}</textarea>
                     @break
 
@@ -31,6 +43,7 @@
                     <select
                         name="{{ $baseName }}[{{ $columnKey }}]"
                         class="form-select form-select-sm {{ $isInvalid ? 'is-invalid' : '' }}"
+                        {{ $columnDisabledAttr }}
                     >
                         <option value="">Select</option>
                         @foreach($column['options'] ?? [] as $option)
@@ -51,6 +64,7 @@
                                     value="{{ $option }}"
                                     id="{{ $radioInputId }}"
                                     {{ $columnValue === $option ? 'checked' : '' }}
+                                    {{ $columnDisabledAttr }}
                                 >
                                 <label class="form-check-label small" for="{{ $radioInputId }}">{{ $option }}</label>
                             </div>
@@ -79,10 +93,11 @@
                                      class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
                                      type="checkbox"
                                      name="{{ $baseName }}[{{ $columnKey }}][]"
-                                     value="{{ $option }}"
-                                     id="{{ $checkboxInputId }}"
-                                     {{ $checkboxValues->contains($option) ? 'checked' : '' }}
-                                >
+                                      value="{{ $option }}"
+                                      id="{{ $checkboxInputId }}"
+                                      {{ $checkboxValues->contains($option) ? 'checked' : '' }}
+                                      {{ $columnDisabledAttr }}
+                                 >
                                 <label class="form-check-label small" for="{{ $checkboxInputId }}">{{ $option }}</label>
                             </div>
                         @endforeach
@@ -98,6 +113,7 @@
                                     data-other-toggle
                                     data-other-input-id="{{ $otherInputId }}"
                                     {{ $otherChecked ? 'checked' : '' }}
+                                    {{ $columnDisabledAttr }}
                                 >
                                 <label class="form-check-label small" for="{{ $otherInputId }}_toggle">{{ $column['other_label'] }}</label>
                                 <input
@@ -109,7 +125,7 @@
                                     placeholder="Please specify"
                                     data-other-label="{{ $column['other_label'] }}"
                                     data-other-input-field
-                                    {{ $otherChecked ? '' : 'disabled' }}
+                                    {{ (!$columnVisible || !$otherChecked) ? 'disabled' : '' }}
                                 >
                             </div>
                         @endif
@@ -122,6 +138,7 @@
                         name="{{ $baseName }}[{{ $columnKey }}]"
                         value="{{ is_string($columnValue) ? $columnValue : '' }}"
                         class="form-control form-control-sm {{ $isInvalid ? 'is-invalid' : '' }}"
+                        {{ $columnDisabledAttr }}
                     >
                     @break
 
@@ -131,6 +148,7 @@
                         name="{{ $baseName }}[{{ $columnKey }}]"
                         value="{{ is_scalar($columnValue) ? $columnValue : '' }}"
                         class="form-control form-control-sm {{ $isInvalid ? 'is-invalid' : '' }}"
+                        {{ $columnDisabledAttr }}
                     >
             @endswitch
 

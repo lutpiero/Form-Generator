@@ -194,7 +194,12 @@ class TableFieldTest extends TestCase
                     'columns' => [
                         ['label' => 'Item Name', 'type' => 'text', 'required' => '1'],
                         ['label' => 'Radio 1', 'type' => 'radio', 'options' => "yes\nno"],
-                        ['label' => 'Checkbox 1', 'type' => 'checkbox', 'options' => "opt1\nopt2", 'allow_custom_answer' => '1', 'other_label' => 'Lainnya'],
+                        ['label' => 'Checkbox 1', 'type' => 'checkbox', 'options' => "opt1\nopt2", 'allow_custom_answer' => '1', 'other_label' => 'Lainnya', 'visibility' => [
+                            'enabled' => '1',
+                            'field' => 'radio_1',
+                            'operator' => 'equals',
+                            'value' => 'yes',
+                        ]],
                     ],
                 ],
             ])
@@ -208,6 +213,12 @@ class TableFieldTest extends TestCase
         $this->assertTrue($field->table_columns[2]['allow_custom_answer']);
         $this->assertSame('Lainnya', $field->table_columns[2]['other_label']);
         $this->assertSame(['yes', 'no'], $field->table_columns[1]['options']);
+        $this->assertSame([
+            'enabled' => true,
+            'field' => 'radio_1',
+            'operator' => 'equals',
+            'value' => 'yes',
+        ], $field->table_columns[2]['visibility']);
 
         $itemNameKey = $field->table_columns[0]['key'];
         $radioKey = $field->table_columns[1]['key'];
@@ -309,6 +320,176 @@ class TableFieldTest extends TestCase
         $this->assertStringContainsString('id="customAnswerGroup" style="display:none"', $response->getContent());
     }
 
+    public function test_row_level_conditional_column_is_hidden_when_condition_is_not_met(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+
+        $response = $this
+            ->withSession([
+                '_old_input' => [
+                    'table_fields' => [
+                        $field->id => [
+                            ['has_custom_value' => 'no', 'custom_value' => 'secret'],
+                        ],
+                    ],
+                ],
+            ])
+            ->get(route('forms.show', $form));
+
+        $response->assertOk();
+        $response->assertSee('data-column-key="custom_value"', false);
+        $response->assertSee('data-visibility-state="hidden"', false);
+    }
+
+    public function test_row_level_conditional_column_is_shown_when_condition_is_met(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+
+        $response = $this
+            ->withSession([
+                '_old_input' => [
+                    'table_fields' => [
+                        $field->id => [
+                            ['has_custom_value' => 'yes', 'custom_value' => 'shown'],
+                        ],
+                    ],
+                ],
+            ])
+            ->get(route('forms.show', $form));
+
+        $response->assertOk();
+        $response->assertSee('data-column-key="custom_value"', false);
+        $response->assertSee('data-visibility-state="visible"', false);
+    }
+
+    public function test_hidden_required_conditional_table_cell_does_not_block_submission(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+
+        $response = $this->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'has_custom_value' => 'no',
+                        'custom_value' => '',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+        $this->assertDatabaseCount('form_submissions', 1);
+    }
+
+    public function test_row_level_required_validation_is_scoped_per_row(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+
+        $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'has_custom_value' => 'no',
+                        'custom_value' => '',
+                    ],
+                    [
+                        '__row' => 1,
+                        'has_custom_value' => 'yes',
+                        'custom_value' => '',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.show', $form));
+        $response->assertSessionHasErrors("table_fields.{$field->id}.1.custom_value");
+        $response->assertSessionDoesntHaveErrors("table_fields.{$field->id}.0.custom_value");
+    }
+
+    public function test_hidden_table_cell_value_is_not_stored(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+
+        $response = $this->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'has_custom_value' => 'no',
+                        'custom_value' => 'should not persist',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+
+        $submission = FormSubmission::firstOrFail();
+        $this->assertArrayNotHasKey('custom_value', $submission->data[$field->name][0]);
+    }
+
+    public function test_new_table_rows_can_evaluate_visibility_rules_from_template(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+
+        $response = $this->get(route('forms.show', $form));
+
+        $response->assertOk();
+        $response->assertSee('<template data-table-row-template>', false);
+        $response->assertSee('data-visibility-field="has_custom_value"', false);
+        $response->assertSee('data-visibility-operator="equals"', false);
+    }
+
     protected function tableFieldAttributes(): array
     {
         return [
@@ -324,6 +505,36 @@ class TableFieldTest extends TestCase
                     ['key' => 'field_1', 'label' => 'Field 1', 'type' => 'text', 'required' => false, 'options' => []],
                     ['key' => 'checkbox_1', 'label' => 'Checkbox 1', 'type' => 'checkbox', 'required' => false, 'options' => ['opt1', 'opt2'], 'allow_custom_answer' => true, 'other_label' => 'Lainnya'],
                     ['key' => 'radio_1', 'label' => 'Radio 1', 'type' => 'radio', 'required' => false, 'options' => ['yes', 'no']],
+                ],
+            ],
+        ];
+    }
+
+    protected function conditionalTableFieldAttributes(): array
+    {
+        return [
+            'label' => 'Conditional Items',
+            'name' => 'conditional_items',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => true,
+                'columns' => [
+                    ['key' => 'has_custom_value', 'label' => 'Has Custom Value', 'type' => 'radio', 'required' => true, 'options' => ['yes', 'no']],
+                    [
+                        'key' => 'custom_value',
+                        'label' => 'Custom Value',
+                        'type' => 'text',
+                        'required' => true,
+                        'options' => [],
+                        'visibility' => [
+                            'enabled' => true,
+                            'field' => 'has_custom_value',
+                            'operator' => 'equals',
+                            'value' => 'yes',
+                        ],
+                    ],
                 ],
             ],
         ];

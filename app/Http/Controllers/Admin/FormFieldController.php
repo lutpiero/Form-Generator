@@ -37,9 +37,13 @@ class FormFieldController extends Controller
             'config.columns.*.allow_custom_answer' => 'sometimes|boolean',
             'config.columns.*.other_label' => 'nullable|string|max:255',
             'config.columns.*.options' => 'nullable',
+            'config.columns.*.visibility.enabled' => 'sometimes|boolean',
+            'config.columns.*.visibility.field' => 'nullable|string|max:255',
+            'config.columns.*.visibility.operator' => 'nullable|in:equals,not_equals,is_empty,is_not_empty',
+            'config.columns.*.visibility.value' => 'nullable|string|max:255',
             'visibility.enabled' => 'sometimes|boolean',
             'visibility.field_id' => 'nullable|integer',
-            'visibility.operator' => 'nullable|in:equals,not_equals',
+            'visibility.operator' => 'nullable|in:equals,not_equals,is_empty,is_not_empty',
             'visibility.value' => 'nullable|string|max:255',
         ]);
 
@@ -86,9 +90,13 @@ class FormFieldController extends Controller
             'config.columns.*.allow_custom_answer' => 'sometimes|boolean',
             'config.columns.*.other_label' => 'nullable|string|max:255',
             'config.columns.*.options' => 'nullable',
+            'config.columns.*.visibility.enabled' => 'sometimes|boolean',
+            'config.columns.*.visibility.field' => 'nullable|string|max:255',
+            'config.columns.*.visibility.operator' => 'nullable|in:equals,not_equals,is_empty,is_not_empty',
+            'config.columns.*.visibility.value' => 'nullable|string|max:255',
             'visibility.enabled' => 'sometimes|boolean',
             'visibility.field_id' => 'nullable|integer',
-            'visibility.operator' => 'nullable|in:equals,not_equals',
+            'visibility.operator' => 'nullable|in:equals,not_equals,is_empty,is_not_empty',
             'visibility.value' => 'nullable|string|max:255',
         ]);
 
@@ -169,6 +177,7 @@ class FormFieldController extends Controller
     private function prepareTableConfig(Request $request): array
     {
         $columns = [];
+        $columnIndexLookup = [];
         foreach ((array) $request->input('config.columns', []) as $index => $column) {
             if (!is_array($column)) {
                 continue;
@@ -199,12 +208,24 @@ class FormFieldController extends Controller
                 'allow_custom_answer' => $allowCustomAnswer,
                 'other_label' => FormField::normalizeOtherLabel($column['other_label'] ?? null),
             ];
+            $columnIndexLookup[$key] = $index;
         }
 
         if ($columns === []) {
             throw ValidationException::withMessages([
                 'config.columns' => 'Please add at least one table column.',
             ]);
+        }
+
+        $columnKeys = array_column($columns, 'key');
+        foreach ($columns as $position => $column) {
+            $sourceIndex = $columnIndexLookup[$column['key']] ?? null;
+            $sourceColumn = is_int($sourceIndex) ? (array) $request->input("config.columns.{$sourceIndex}", []) : [];
+            $visibility = $this->prepareColumnVisibilityConfig($sourceColumn, $column['key'], $columnKeys, $position);
+
+            if ($visibility !== null) {
+                $columns[$position]['visibility'] = $visibility;
+            }
         }
 
         return [
@@ -235,7 +256,7 @@ class FormFieldController extends Controller
             ]);
         }
 
-        if ($expectedValue === '') {
+        if (in_array($operator, ['equals', 'not_equals'], true) && $expectedValue === '') {
             throw ValidationException::withMessages([
                 'visibility.value' => 'Please enter an expected value.',
             ]);
@@ -243,7 +264,7 @@ class FormFieldController extends Controller
 
         $controllerField = $form->fields()
             ->where('id', $controllerFieldId)
-            ->whereIn('type', FormField::VISIBILITY_CONTROLLER_TYPES)
+            ->whereNotIn('type', ['section', 'table'])
             ->first();
 
         if ($controllerField === null || ($currentField && $controllerField->id === $currentField->id)) {
@@ -255,6 +276,49 @@ class FormFieldController extends Controller
         return [
             'enabled' => true,
             'field_id' => $controllerField->id,
+            'operator' => $operator,
+            'value' => $expectedValue,
+        ];
+    }
+
+    private function prepareColumnVisibilityConfig(array $column, string $currentKey, array $availableKeys, int $position): ?array
+    {
+        if (empty($column['visibility']['enabled'])) {
+            return null;
+        }
+
+        $controllerField = $this->sanitizeName((string) ($column['visibility']['field'] ?? ''));
+        $operator = (string) ($column['visibility']['operator'] ?? '');
+        $expectedValue = trim((string) ($column['visibility']['value'] ?? ''));
+        $baseErrorKey = "config.columns.{$position}.visibility";
+
+        if ($controllerField === '') {
+            throw ValidationException::withMessages([
+                "{$baseErrorKey}.field" => 'Please select a controlling column.',
+            ]);
+        }
+
+        if ($controllerField === $currentKey || !in_array($controllerField, $availableKeys, true)) {
+            throw ValidationException::withMessages([
+                "{$baseErrorKey}.field" => 'Please select a valid controlling column.',
+            ]);
+        }
+
+        if (!in_array($operator, FormField::VISIBILITY_OPERATORS, true)) {
+            throw ValidationException::withMessages([
+                "{$baseErrorKey}.operator" => 'Please select a valid visibility operator.',
+            ]);
+        }
+
+        if (in_array($operator, ['equals', 'not_equals'], true) && $expectedValue === '') {
+            throw ValidationException::withMessages([
+                "{$baseErrorKey}.value" => 'Please enter an expected value.',
+            ]);
+        }
+
+        return [
+            'enabled' => true,
+            'field' => $controllerField,
             'operator' => $operator,
             'value' => $expectedValue,
         ];
@@ -285,7 +349,7 @@ class FormFieldController extends Controller
     private function visibilityControllerFields(Form $form, ?FormField $currentField = null)
     {
         return $form->fields()
-            ->whereIn('type', FormField::VISIBILITY_CONTROLLER_TYPES)
+            ->whereNotIn('type', ['section', 'table'])
             ->when($currentField !== null, fn ($query) => $query->where('id', '!=', $currentField->id))
             ->get();
     }
