@@ -34,10 +34,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (!summaryElement.dataset.placeholder) {
-                summaryElement.dataset.placeholder = (summaryElement.textContent || '').trim() || 'Select options...';
-            }
-
             const checked = Array.from(group.querySelectorAll('[data-checkbox-dropdown-option]:checked'));
 
             if (checked.length === 0) {
@@ -57,6 +53,18 @@ document.addEventListener('DOMContentLoaded', () => {
             summaryElement.textContent = selectedLabels.length <= 2
                 ? selectedLabels.join(', ')
                 : `${selectedLabels.length} selected`;
+        };
+
+        const initializeCheckboxDropdownSummary = (group) => {
+            if (!group || group.dataset.fieldType !== 'checkbox_dropdown') {
+                return;
+            }
+
+            const summaryElement = group.querySelector('[data-checkbox-dropdown-summary]');
+
+            if (summaryElement && !summaryElement.dataset.placeholder) {
+                summaryElement.dataset.placeholder = (summaryElement.textContent || '').trim() || 'Select options...';
+            }
         };
 
         const updateOtherInputState = (toggle, autoFocus = false) => {
@@ -322,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateOtherInputState(toggle);
         });
         fieldGroups.forEach((group) => {
+            initializeCheckboxDropdownSummary(group);
             updateCheckboxDropdownSummary(group);
         });
 

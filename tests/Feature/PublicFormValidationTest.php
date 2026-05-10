@@ -385,9 +385,12 @@ class PublicFormValidationTest extends TestCase
 
         $tempFile = tempnam(sys_get_temp_dir(), 'xlsx_test_');
         copy($excel->baseResponse->getFile()->getPathname(), $tempFile);
-        $spreadsheet = IOFactory::load($tempFile);
-        if (file_exists($tempFile)) {
-            unlink($tempFile);
+        try {
+            $spreadsheet = IOFactory::load($tempFile);
+        } finally {
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
         }
 
         $summarySheet = $spreadsheet->getSheetByName('Submissions');

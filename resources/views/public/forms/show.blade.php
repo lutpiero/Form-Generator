@@ -149,7 +149,7 @@
                     @break
                 @case('checkbox_dropdown')
                     @php
-                        $oldCheckboxValues = array_values((array) old($field->name, []));
+                        $oldCheckboxValues = (array) old($field->name, []);
                         $oldCheckboxLookup = array_flip($oldCheckboxValues);
                         $selectedLabels = collect($field->selectable_options)
                             ->filter(fn ($option) => array_key_exists($option, $oldCheckboxLookup))
