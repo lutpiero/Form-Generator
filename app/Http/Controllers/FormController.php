@@ -99,12 +99,13 @@ class FormController extends Controller
                 case 'checkbox':
                 case 'checkbox_dropdown':
                     $fieldRules[] = 'array';
+                    $supportsOtherOption = $field->type === 'checkbox' && $field->hasOtherOption();
 
                     if (!empty($field->options_array)) {
                         $rules["{$field->name}.*"] = ['string', Rule::in($field->options_array)];
                     }
 
-                    if ($field->type === 'checkbox' && $field->hasOtherOption()) {
+                    if ($supportsOtherOption) {
                         $otherFieldName = $field->other_input_name;
                         $otherChecked = in_array(FormField::OTHER_OPTION_VALUE, (array) $request->input($field->name, []), true);
 
@@ -168,8 +169,9 @@ class FormController extends Controller
                     (array) $value,
                     fn ($item) => $item !== null && $item !== ''
                 ));
+                $supportsOtherOption = $field->type === 'checkbox' && $field->hasOtherOption();
 
-                if ($field->type === 'checkbox' && $field->hasOtherOption() && in_array(FormField::OTHER_OPTION_VALUE, $value, true)) {
+                if ($supportsOtherOption && in_array(FormField::OTHER_OPTION_VALUE, $value, true)) {
                     $otherValue = trim((string) ($validated[$field->other_input_name] ?? ''));
                     $value = array_map(
                         fn ($item) => $item === FormField::OTHER_OPTION_VALUE ? FormField::formatOtherResponse($otherValue) : $item,
