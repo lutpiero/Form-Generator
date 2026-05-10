@@ -330,7 +330,7 @@ class TableFieldTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
-        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+        $field = $form->fields()->create($this->tableFieldAttributesWithConditionalColumn());
 
         $response = $this
             ->withSession([
@@ -359,7 +359,7 @@ class TableFieldTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
-        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+        $field = $form->fields()->create($this->tableFieldAttributesWithConditionalColumn());
 
         $response = $this
             ->withSession([
@@ -388,7 +388,7 @@ class TableFieldTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
-        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+        $field = $form->fields()->create($this->tableFieldAttributesWithConditionalColumn());
 
         $response = $this->post(route('forms.submit', $form), [
             'table_fields' => [
@@ -416,7 +416,7 @@ class TableFieldTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
-        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+        $field = $form->fields()->create($this->tableFieldAttributesWithConditionalColumn());
 
         $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
             'table_fields' => [
@@ -427,7 +427,7 @@ class TableFieldTest extends TestCase
                         'custom_value' => '',
                     ],
                     [
-                        '__row' => 1,
+                        '__row' => 2,
                         'has_custom_value' => 'yes',
                         'custom_value' => '',
                     ],
@@ -450,7 +450,7 @@ class TableFieldTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
-        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+        $field = $form->fields()->create($this->tableFieldAttributesWithConditionalColumn());
 
         $response = $this->post(route('forms.submit', $form), [
             'table_fields' => [
@@ -480,7 +480,7 @@ class TableFieldTest extends TestCase
             'captcha_type' => 'math',
         ]);
 
-        $field = $form->fields()->create($this->conditionalTableFieldAttributes());
+        $field = $form->fields()->create($this->tableFieldAttributesWithConditionalColumn());
 
         $response = $this->get(route('forms.show', $form));
 
@@ -510,7 +510,7 @@ class TableFieldTest extends TestCase
         ];
     }
 
-    protected function conditionalTableFieldAttributes(): array
+    protected function tableFieldAttributesWithConditionalColumn(): array
     {
         return [
             'label' => 'Conditional Items',

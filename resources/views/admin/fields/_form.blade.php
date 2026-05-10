@@ -10,6 +10,7 @@
     $visibilityFieldId = old('visibility.field_id', $visibilityRule['field_id'] ?? '');
     $visibilityOperator = old('visibility.operator', $visibilityRule['operator'] ?? 'equals');
     $visibilityValue = old('visibility.value', $visibilityRule['value'] ?? '');
+    $emptyCheckOperators = ['is_empty', 'is_not_empty'];
 @endphp
 
 <div class="mb-3" id="labelGroup">
@@ -175,7 +176,7 @@
                                         <option value="is_not_empty" {{ $columnVisibilityOperator === 'is_not_empty' ? 'selected' : '' }}>is not empty</option>
                                     </select>
                                 </div>
-                                <div class="column-visibility-value-group" style="{{ in_array($columnVisibilityOperator, ['is_empty', 'is_not_empty'], true) ? 'display:none' : '' }}">
+                                <div class="column-visibility-value-group" style="{{ in_array($columnVisibilityOperator, $emptyCheckOperators, true) ? 'display:none' : '' }}">
                                     <label class="form-label fw-semibold">Expected value</label>
                                     <input type="text" name="config[columns][{{ $index }}][visibility][value]" class="form-control"
                                            value="{{ $columnVisibilityValue }}" data-column-visibility-value placeholder="e.g. yes">
@@ -327,7 +328,7 @@
             @error('visibility.operator')<div class="invalid-feedback">{{ $message }}</div>@enderror
         </div>
 
-        <div id="visibilityValueGroup" style="{{ in_array($visibilityOperator, ['is_empty', 'is_not_empty'], true) ? 'display:none' : '' }}">
+        <div id="visibilityValueGroup" style="{{ in_array($visibilityOperator, $emptyCheckOperators, true) ? 'display:none' : '' }}">
             <label class="form-label fw-semibold" for="visibility_value">Expected value</label>
             <input type="text" name="visibility[value]" id="visibility_value" class="form-control @error('visibility.value') is-invalid @enderror"
                    value="{{ $visibilityValue }}" placeholder="e.g. employed">
@@ -358,6 +359,7 @@
     var columnsContainer = document.getElementById('tableColumnsContainer');
     var addTableColumnButton = document.getElementById('addTableColumn');
     var tableColumnTemplate = document.getElementById('tableColumnTemplate');
+    var emptyCheckOperators = @js($emptyCheckOperators);
 
     function toSnakeCase(value) {
         return value
@@ -393,7 +395,7 @@
             return;
         }
 
-        valueGroupElement.style.display = ['is_empty', 'is_not_empty'].includes(operatorElement.value) ? 'none' : '';
+        valueGroupElement.style.display = emptyCheckOperators.includes(operatorElement.value) ? 'none' : '';
     }
 
     function updateColumnVisibilityState(columnItem) {

@@ -84,20 +84,21 @@
 
                         $otherChecked = $checkboxValues->contains(\App\Models\FormField::OTHER_OPTION_VALUE)
                             || $checkboxValues->contains(fn ($value) => \App\Models\FormField::isOtherResponse($value));
+                        $otherFieldDisabledAttr = (!$columnVisible || !$otherChecked) ? 'disabled' : '';
                     @endphp
                     <div class="d-flex flex-column gap-1">
                         @foreach($column['options'] ?? [] as $optionIndex => $option)
                             @php $checkboxInputId = "{$field->id}_{$rowIndex}_{$columnKey}_{$optionIndex}"; @endphp
                             <div class="form-check">
                                 <input
-                                     class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
-                                     type="checkbox"
-                                     name="{{ $baseName }}[{{ $columnKey }}][]"
-                                      value="{{ $option }}"
-                                      id="{{ $checkboxInputId }}"
-                                      {{ $checkboxValues->contains($option) ? 'checked' : '' }}
-                                      {{ $columnDisabledAttr }}
-                                 >
+                                    class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
+                                    type="checkbox"
+                                    name="{{ $baseName }}[{{ $columnKey }}][]"
+                                    value="{{ $option }}"
+                                    id="{{ $checkboxInputId }}"
+                                    {{ $checkboxValues->contains($option) ? 'checked' : '' }}
+                                    {{ $columnDisabledAttr }}
+                                >
                                 <label class="form-check-label small" for="{{ $checkboxInputId }}">{{ $option }}</label>
                             </div>
                         @endforeach
@@ -125,7 +126,7 @@
                                     placeholder="Please specify"
                                     data-other-label="{{ $column['other_label'] }}"
                                     data-other-input-field
-                                    {{ (!$columnVisible || !$otherChecked) ? 'disabled' : '' }}
+                                    {{ $otherFieldDisabledAttr }}
                                 >
                             </div>
                         @endif

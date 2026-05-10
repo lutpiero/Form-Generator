@@ -153,7 +153,7 @@ class FormField extends Model
 
     public static function evaluateVisibilityCondition(mixed $actualValue, string $operator, mixed $expectedValue = null): bool
     {
-        $normalizedActual = self::normalizeVisibilityActual($actualValue);
+        $normalizedActual = self::normalizeVisibilityValue($actualValue);
         $normalizedExpected = trim((string) ($expectedValue ?? ''));
 
         return match ($operator) {
@@ -200,13 +200,13 @@ class FormField extends Model
         );
     }
 
-    protected static function normalizeVisibilityActual(mixed $value): string|array
+    protected static function normalizeVisibilityValue(mixed $value): string|array
     {
         if (is_array($value)) {
-            return array_values(array_map(
+            return array_values(array_filter(array_map(
                 fn ($item) => trim((string) $item),
-                array_filter($value, fn ($item) => $item !== null && trim((string) $item) !== '')
-            ));
+                $value
+            ), fn ($item) => $item !== ''));
         }
 
         return trim((string) ($value ?? ''));

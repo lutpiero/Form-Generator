@@ -302,7 +302,7 @@
         var normalizedActual = normalizeVisibilityValue(actualValue);
         var normalizedExpected = String(expectedValue || '').trim();
         var equals = Array.isArray(normalizedActual)
-            ? normalizedActual.indexOf(normalizedExpected) !== -1
+            ? normalizedActual.includes(normalizedExpected)
             : normalizedActual === normalizedExpected;
         var isEmpty = Array.isArray(normalizedActual)
             ? normalizedActual.length === 0
@@ -381,6 +381,13 @@
         });
     }
 
+    function syncRowVisibilityForCell(cell) {
+        var row = cell.closest('[data-table-row]');
+        if (row) {
+            syncRowVisibility(row);
+        }
+    }
+
     function validateRepeatableTables(form) {
         var valid = true;
 
@@ -457,10 +464,7 @@
         tableWrapper.addEventListener('change', function (event) {
             var cell = event.target.closest('td[data-column-type]');
             if (cell) {
-                var row = cell.closest('[data-table-row]');
-                if (row) {
-                    syncRowVisibility(row);
-                }
+                syncRowVisibilityForCell(cell);
                 clearCellValidation(cell);
                 var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
                 if (summaryError) {
@@ -472,10 +476,7 @@
         tableWrapper.addEventListener('input', function (event) {
             var cell = event.target.closest('td[data-column-type="checkbox"]');
             if (cell) {
-                var row = cell.closest('[data-table-row]');
-                if (row) {
-                    syncRowVisibility(row);
-                }
+                syncRowVisibilityForCell(cell);
                 clearCellValidation(cell);
             }
         });

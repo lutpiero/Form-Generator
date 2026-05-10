@@ -233,8 +233,11 @@ class FormController extends Controller
                     $hasValue = $hasValue || $value !== [];
                 } else {
                     if (is_array($value)) {
-                        $value = null;
-                    } elseif (is_string($value)) {
+                        // Skip malformed array payloads for non-checkbox columns.
+                        continue;
+                    }
+
+                    if (is_string($value)) {
                         $value = trim($value);
                     }
                     $hasValue = $hasValue || !in_array($value, [null, ''], true);
