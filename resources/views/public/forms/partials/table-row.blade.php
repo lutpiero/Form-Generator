@@ -5,7 +5,7 @@
 
 <tr data-table-row>
     @if($field->table_auto_number)
-        <td class="text-muted text-center align-middle" data-table-row-number>{{ is_numeric($rowIndex) ? $rowIndex + 1 : '' }}</td>
+        <td class="text-muted text-center align-top" data-table-row-number>{{ is_numeric($rowIndex) ? $rowIndex + 1 : '' }}</td>
     @endif
 
     @foreach($columns as $column)
@@ -20,7 +20,8 @@
             $columnVisibility = \App\Models\FormField::normalizeColumnVisibilityRule($column['visibility'] ?? null);
             $columnDisabledAttr = $columnVisible ? '' : 'disabled';
         @endphp
-        <td data-column-type="{{ $column['type'] }}"
+        <td class="align-top"
+            data-column-type="{{ $column['type'] }}"
             data-column-key="{{ $columnKey }}"
             data-required="{{ ($column['required'] ?? false) ? '1' : '0' }}"
             data-visibility-enabled="{{ $columnVisibility ? 'true' : 'false' }}"
@@ -159,7 +160,7 @@
         </td>
     @endforeach
 
-    <td class="text-center align-middle">
+    <td class="text-center align-top">
         <input type="hidden" name="{{ $baseName }}[__row]" value="1">
         <button type="button" class="btn btn-outline-danger btn-sm js-table-remove-row" title="Remove row">
             <i class="bi bi-trash"></i>

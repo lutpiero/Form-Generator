@@ -10,21 +10,21 @@
     <label class="form-label fw-semibold">{{ $field->label }}</label>
 
     <div class="table-responsive">
-        <table class="table table-bordered align-middle">
+        <table class="table table-bordered">
             <thead class="table-light">
                 <tr>
                     @if($field->table_auto_number)
-                        <th class="text-center" style="width: 70px;">#</th>
+                        <th class="text-center align-top" style="width: 70px;">#</th>
                     @endif
                     @foreach($columns as $column)
-                        <th>
+                        <th class="align-top">
                             {{ $column['label'] }}
                             @if($column['required'] ?? false)
                                 <span class="text-danger">*</span>
                             @endif
                         </th>
                     @endforeach
-                    <th class="text-center" style="width: 90px;">Action</th>
+                    <th class="text-center align-top" style="width: 90px;">Action</th>
                 </tr>
             </thead>
             <tbody data-table-body>
