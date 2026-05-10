@@ -193,6 +193,76 @@ class PublicFormValidationTest extends TestCase
         $this->assertSame(['other:Custom answer'], $submission->data[$specialName]);
     }
 
+    public function test_conditional_field_is_hidden_on_initial_load_when_condition_is_not_met(): void
+    {
+        [$form] = $this->createConditionalVisibilityForm();
+
+        $response = $this->get(route('forms.show', $form));
+
+        $response->assertOk();
+        $response->assertSee('data-field-name="company_name"', false);
+        $response->assertSee('data-visibility-enabled="true"', false);
+        $response->assertSee('data-visibility-field="employment_status"', false);
+        $response->assertSee('data-visibility-operator="equals"', false);
+        $response->assertSee('data-visibility-value="employed"', false);
+        $response->assertSee('data-visibility-state="hidden"', false);
+    }
+
+    public function test_conditional_field_is_shown_when_condition_is_met(): void
+    {
+        [$form] = $this->createConditionalVisibilityForm();
+
+        $response = $this
+            ->withSession(['_old_input' => ['employment_status' => 'employed']])
+            ->get(route('forms.show', $form));
+
+        $response->assertOk();
+        $response->assertSee('data-field-name="company_name"', false);
+        $response->assertSee('data-visibility-state="visible"', false);
+    }
+
+    public function test_hidden_required_conditional_field_does_not_block_submission(): void
+    {
+        [$form] = $this->createConditionalVisibilityForm();
+
+        $response = $this->post(route('forms.submit', $form), [
+            'employment_status' => 'unemployed',
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+        $this->assertDatabaseCount('form_submissions', 1);
+    }
+
+    public function test_shown_required_conditional_field_blocks_submission_when_empty(): void
+    {
+        [$form] = $this->createConditionalVisibilityForm();
+
+        $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
+            'employment_status' => 'employed',
+            'company_name' => '   ',
+        ]);
+
+        $response->assertRedirect(route('forms.show', $form));
+        $response->assertSessionHasErrors(['company_name']);
+        $this->assertDatabaseCount('form_submissions', 0);
+    }
+
+    public function test_hidden_conditional_field_value_is_not_stored(): void
+    {
+        [$form] = $this->createConditionalVisibilityForm();
+
+        $response = $this->post(route('forms.submit', $form), [
+            'employment_status' => 'unemployed',
+            'company_name' => 'Should not persist',
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+
+        $submission = FormSubmission::first();
+        $this->assertNotNull($submission);
+        $this->assertArrayNotHasKey('company_name', $submission->data);
+    }
+
     private function createCheckboxField(array $overrides = []): FormField
     {
         $form = Form::create([
@@ -212,5 +282,43 @@ class PublicFormValidationTest extends TestCase
             'required' => false,
             'order' => 0,
         ], $overrides));
+    }
+
+    private function createConditionalVisibilityForm(): array
+    {
+        $form = Form::create([
+            'name' => 'Employment Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $controllerField = $form->fields()->create([
+            'label' => 'Employment Status',
+            'name' => 'employment_status',
+            'type' => 'radio',
+            'options' => json_encode(['employed', 'unemployed']),
+            'required' => true,
+            'order' => 0,
+        ]);
+
+        $dependentField = $form->fields()->create([
+            'label' => 'Company Name',
+            'name' => 'company_name',
+            'type' => 'text',
+            'required' => true,
+            'order' => 1,
+            'config' => [
+                'visibility' => [
+                    'enabled' => true,
+                    'field_id' => $controllerField->id,
+                    'operator' => 'equals',
+                    'value' => 'employed',
+                ],
+            ],
+        ]);
+
+        return [$form, $controllerField, $dependentField];
     }
 }

@@ -52,6 +52,102 @@ document.addEventListener('DOMContentLoaded', () => {
             feedback.classList.toggle('d-block', !isValid && message !== '');
         };
 
+        const clearGroupErrors = (group) => {
+            setGroupValidity(group, true);
+            group.querySelectorAll('input[disabled], select[disabled], textarea[disabled]').forEach((control) => {
+                control.classList.remove('is-invalid');
+            });
+        };
+
+        const findFieldGroupByName = (fieldName) => fieldGroups.find((group) => group.dataset.fieldName === fieldName);
+
+        const getGroupValue = (group) => {
+            if (!group) {
+                return '';
+            }
+
+            const type = group.dataset.fieldType;
+
+            if (type === 'radio') {
+                return group.querySelector('input[type="radio"]:checked')?.value ?? '';
+            }
+
+            if (type === 'dropdown') {
+                return group.querySelector('select')?.value ?? '';
+            }
+
+            return '';
+        };
+
+        const clearGroupValues = (group) => {
+            group.querySelectorAll('input, select, textarea').forEach((control) => {
+                if (control.type === 'checkbox' || control.type === 'radio') {
+                    control.checked = false;
+                } else if (control.tagName === 'SELECT') {
+                    control.selectedIndex = 0;
+                } else {
+                    control.value = '';
+                }
+            });
+        };
+
+        const evaluateVisibility = (group) => {
+            if (group.dataset.visibilityEnabled !== 'true') {
+                return true;
+            }
+
+            const controllerName = group.dataset.visibilityField ?? '';
+            const operator = group.dataset.visibilityOperator ?? '';
+            const expectedValue = group.dataset.visibilityValue ?? '';
+            const controllerGroup = findFieldGroupByName(controllerName);
+
+            if (!controllerGroup) {
+                return true;
+            }
+
+            const actualValue = getGroupValue(controllerGroup);
+
+            return operator === 'not_equals'
+                ? actualValue !== expectedValue
+                : actualValue === expectedValue;
+        };
+
+        const syncGroupVisibility = (group) => {
+            const visible = evaluateVisibility(group);
+
+            group.style.display = visible ? '' : 'none';
+            group.dataset.visibilityState = visible ? 'visible' : 'hidden';
+
+            const controls = group.querySelectorAll('input, select, textarea');
+            controls.forEach((control) => {
+                control.disabled = !visible;
+            });
+
+            if (!visible) {
+                clearGroupValues(group);
+                clearGroupErrors(group);
+                return;
+            }
+
+            group.querySelectorAll('[data-other-toggle]').forEach((toggle) => {
+                updateOtherInputState(toggle);
+            });
+        };
+
+        const refreshDependentVisibility = (controllerName = null) => {
+            fieldGroups.forEach((group) => {
+                if (group.dataset.visibilityEnabled !== 'true') {
+                    return;
+                }
+
+                if (controllerName && group.dataset.visibilityField !== controllerName) {
+                    return;
+                }
+
+                syncGroupVisibility(group);
+            });
+        };
+
         const getRequiredMessage = (label) => `The ${label} field is required.`;
 
         const validateGroup = (group) => {
@@ -149,16 +245,21 @@ document.addEventListener('DOMContentLoaded', () => {
             updateOtherInputState(toggle);
         });
 
+        refreshDependentVisibility();
+
         form.addEventListener('change', (event) => {
+            const changedGroup = event.target.closest('.form-field');
             const toggle = event.target.closest('[data-other-toggle]');
-            if (!toggle) {
-                return;
+            if (toggle) {
+                updateOtherInputState(toggle, toggle.checked);
+                const group = toggle.closest('.form-field');
+                if (group) {
+                    validateGroup(group);
+                }
             }
 
-            updateOtherInputState(toggle, toggle.checked);
-            const group = toggle.closest('.form-field');
-            if (group) {
-                validateGroup(group);
+            if (changedGroup?.dataset.fieldName) {
+                refreshDependentVisibility(changedGroup.dataset.fieldName);
             }
         });
 

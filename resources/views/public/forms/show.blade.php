@@ -28,6 +28,9 @@
 
     <form method="POST" action="{{ route('forms.submit', $form) }}" id="public-form" data-form-validation novalidate>
         @csrf
+        @php
+            $fieldsById = $form->fields->keyBy('id');
+        @endphp
 
         @foreach($form->fields as $field)
         @if($field->type === 'section')
@@ -44,8 +47,24 @@
         @php
             $fieldError = $errors->first($field->name);
             $otherFieldError = $field->type === 'checkbox' ? $errors->first($field->other_input_name) : null;
+            $visibilityRule = $field->visibility_rule;
+            $controllerField = $visibilityRule ? $fieldsById->get($visibilityRule['field_id']) : null;
+            $hasVisibilityRule = $visibilityRule && $controllerField;
+            $isInitiallyVisible = !$hasVisibilityRule
+                || $field->passesVisibilityCondition(old($controllerField->name));
+            $fieldDisabledAttr = $isInitiallyVisible ? '' : 'disabled';
         @endphp
-        <div class="mb-3 form-field" data-field-type="{{ $field->type }}" data-field-name="{{ $field->name }}" data-label="{{ $field->label }}" data-required="{{ $field->required ? 'true' : 'false' }}">
+        <div class="mb-3 form-field"
+             data-field-type="{{ $field->type }}"
+             data-field-name="{{ $field->name }}"
+             data-label="{{ $field->label }}"
+             data-required="{{ $field->required ? 'true' : 'false' }}"
+             data-visibility-enabled="{{ $hasVisibilityRule ? 'true' : 'false' }}"
+             data-visibility-field="{{ $hasVisibilityRule ? $controllerField->name : '' }}"
+             data-visibility-operator="{{ $hasVisibilityRule ? $visibilityRule['operator'] : '' }}"
+             data-visibility-value="{{ $hasVisibilityRule ? $visibilityRule['value'] : '' }}"
+             data-visibility-state="{{ $isInitiallyVisible ? 'visible' : 'hidden' }}"
+             style="{{ $isInitiallyVisible ? '' : 'display:none;' }}">
             <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox'])) for="{{ $field->name }}" @endif>
                 {{ $field->label }}
                 @if($field->required) <span class="text-danger">*</span> @endif
@@ -57,10 +76,11 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         rows="4"
                         placeholder="{{ $field->placeholder }}"
-                        {{ $field->required ? 'required' : '' }}>{{ old($field->name, $field->default_value) }}</textarea>
+                        {{ $field->required ? 'required' : '' }}
+                        {{ $fieldDisabledAttr }}>{{ old($field->name, $field->default_value) }}</textarea>
                     @break
                 @case('dropdown')
-                    <select name="{{ $field->name }}" id="{{ $field->name }}" class="form-select @error($field->name) is-invalid @enderror" {{ $field->required ? 'required' : '' }}>
+                    <select name="{{ $field->name }}" id="{{ $field->name }}" class="form-select @error($field->name) is-invalid @enderror" {{ $field->required ? 'required' : '' }} {{ $fieldDisabledAttr }}>
                         <option value="">{{ $field->placeholder ?: 'Select an option' }}</option>
                         @foreach($field->options_array as $option)
                             <option value="{{ $option }}" {{ old($field->name) == $option ? 'selected' : '' }}>{{ $option }}</option>
@@ -73,8 +93,9 @@
                             <input class="form-check-input @error($field->name) is-invalid @enderror" type="radio"
                                    name="{{ $field->name }}" value="{{ $option }}"
                                    id="{{ $field->name }}_{{ $loop->index }}"
-                                   {{ old($field->name) == $option ? 'checked' : '' }}
-                                   {{ $field->required ? 'required' : '' }}>
+                                    {{ old($field->name) == $option ? 'checked' : '' }}
+                                   {{ $field->required ? 'required' : '' }}
+                                   {{ $fieldDisabledAttr }}>
                             <label class="form-check-label" for="{{ $field->name }}_{{ $loop->index }}">{{ $option }}</label>
                         </div>
                     @endforeach
@@ -94,7 +115,8 @@
                             <input class="form-check-input @if($fieldError) is-invalid @endif" type="checkbox"
                                    name="{{ $field->name }}[]" value="{{ $option }}"
                                    id="{{ $field->name }}_{{ $loop->index }}"
-                                   {{ $oldCheckboxValues->contains($option) ? 'checked' : '' }}>
+                                   {{ $oldCheckboxValues->contains($option) ? 'checked' : '' }}
+                                   {{ $fieldDisabledAttr }}>
                             <label class="form-check-label" for="{{ $field->name }}_{{ $loop->index }}">{{ $option }}</label>
                         </div>
                     @endforeach
@@ -102,6 +124,7 @@
                         @php
                             $otherChecked = $oldCheckboxValues->contains(FormField::OTHER_OPTION_VALUE)
                                 || $oldCheckboxValues->contains(fn ($value) => FormField::isOtherResponse($value));
+                            $otherFieldDisabledAttr = (!$isInitiallyVisible || !$otherChecked) ? 'disabled' : '';
                         @endphp
                         <div class="form-check" data-other-option>
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="checkbox"
@@ -109,17 +132,18 @@
                                    id="{{ $field->name }}_other_toggle"
                                    data-other-toggle
                                    data-other-input-id="{{ $field->other_input_name }}"
-                                   {{ $otherChecked ? 'checked' : '' }}>
+                                   {{ $otherChecked ? 'checked' : '' }}
+                                   {{ $fieldDisabledAttr }}>
                             <label class="form-check-label" for="{{ $field->name }}_other_toggle">{{ $field->other_label }}</label>
                             <input type="text"
-                                   name="{{ $field->other_input_name }}"
+                                    name="{{ $field->other_input_name }}"
                                    id="{{ $field->other_input_name }}"
                                    value="{{ $oldOtherValue }}"
-                                   class="form-control mt-2 @error($field->other_input_name) is-invalid @enderror"
-                                   placeholder="Please specify"
-                                   data-other-label="{{ $field->other_label }}"
-                                   data-other-input-field
-                                   {{ $otherChecked ? '' : 'disabled' }}>
+                                    class="form-control mt-2 @error($field->other_input_name) is-invalid @enderror"
+                                    placeholder="Please specify"
+                                    data-other-label="{{ $field->other_label }}"
+                                    data-other-input-field
+                                    {{ $otherFieldDisabledAttr }}>
                         </div>
                     @endif
                     @break
@@ -130,14 +154,16 @@
                         placeholder="{{ $field->placeholder }}"
                         pattern="{{ App\Models\FormField::PHONE_PATTERN }}"
                         inputmode="tel"
-                        {{ $field->required ? 'required' : '' }}>
+                        {{ $field->required ? 'required' : '' }}
+                        {{ $fieldDisabledAttr }}>
                     @break
                 @default
                     <input type="{{ $field->type }}" name="{{ $field->name }}" id="{{ $field->name }}"
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
-                        {{ $field->required ? 'required' : '' }}>
+                        {{ $field->required ? 'required' : '' }}
+                        {{ $fieldDisabledAttr }}>
             @endswitch
 
             <div class="invalid-feedback{{ $fieldError || $otherFieldError ? ' d-block' : '' }}" data-feedback>
