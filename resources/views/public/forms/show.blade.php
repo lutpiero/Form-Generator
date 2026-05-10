@@ -124,6 +124,7 @@
                         @php
                             $otherChecked = $oldCheckboxValues->contains(FormField::OTHER_OPTION_VALUE)
                                 || $oldCheckboxValues->contains(fn ($value) => FormField::isOtherResponse($value));
+                            $otherFieldDisabledAttr = (!$isInitiallyVisible || !$otherChecked) ? 'disabled' : '';
                         @endphp
                         <div class="form-check" data-other-option>
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="checkbox"
@@ -142,7 +143,7 @@
                                     placeholder="Please specify"
                                     data-other-label="{{ $field->other_label }}"
                                     data-other-input-field
-                                    {{ (!$isInitiallyVisible || !$otherChecked) ? 'disabled' : '' }}>
+                                    {{ $otherFieldDisabledAttr }}>
                         </div>
                     @endif
                     @break

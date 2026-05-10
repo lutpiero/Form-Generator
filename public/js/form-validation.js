@@ -53,12 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const clearGroupErrors = (group) => {
-            const feedback = getFeedback(group);
-            group.querySelectorAll('input, select, textarea').forEach((control) => {
+            setGroupValidity(group, true);
+            group.querySelectorAll('input[disabled], select[disabled], textarea[disabled]').forEach((control) => {
                 control.classList.remove('is-invalid');
             });
-            feedback.textContent = '';
-            feedback.classList.remove('d-block');
         };
 
         const findFieldGroupByName = (fieldName) => fieldGroups.find((group) => group.dataset.fieldName === fieldName);
@@ -98,8 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return true;
             }
 
-            const controllerName = group.dataset.visibilityField;
-            const operator = group.dataset.visibilityOperator;
+            const controllerName = group.dataset.visibilityField ?? '';
+            const operator = group.dataset.visibilityOperator ?? '';
             const expectedValue = group.dataset.visibilityValue ?? '';
             const controllerGroup = findFieldGroupByName(controllerName);
 
@@ -252,17 +250,12 @@ document.addEventListener('DOMContentLoaded', () => {
         form.addEventListener('change', (event) => {
             const changedGroup = event.target.closest('.form-field');
             const toggle = event.target.closest('[data-other-toggle]');
-            if (!toggle) {
-                if (changedGroup?.dataset.fieldName) {
-                    refreshDependentVisibility(changedGroup.dataset.fieldName);
+            if (toggle) {
+                updateOtherInputState(toggle, toggle.checked);
+                const group = toggle.closest('.form-field');
+                if (group) {
+                    validateGroup(group);
                 }
-                return;
-            }
-
-            updateOtherInputState(toggle, toggle.checked);
-            const group = toggle.closest('.form-field');
-            if (group) {
-                validateGroup(group);
             }
 
             if (changedGroup?.dataset.fieldName) {
