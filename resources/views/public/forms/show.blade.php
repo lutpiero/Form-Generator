@@ -65,7 +65,7 @@
              data-visibility-value="{{ $hasVisibilityRule ? $visibilityRule['value'] : '' }}"
              data-visibility-state="{{ $isInitiallyVisible ? 'visible' : 'hidden' }}"
              style="{{ $isInitiallyVisible ? '' : 'display:none;' }}">
-            <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox'])) for="{{ $field->name }}" @endif>
+            <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox', 'checkbox_dropdown'])) for="{{ $field->name }}" @endif>
                 {{ $field->label }}
                 @if($field->required) <span class="text-danger">*</span> @endif
             </label>
@@ -147,6 +147,47 @@
                         </div>
                     @endif
                     @break
+                @case('checkbox_dropdown')
+                    @php
+                        $oldCheckboxValues = (array) old($field->name, []);
+                        $oldCheckboxLookup = array_flip($oldCheckboxValues);
+                        $selectedLabels = collect($field->selectable_options)
+                            ->filter(fn ($option) => array_key_exists($option, $oldCheckboxLookup))
+                            ->values();
+                        $selectedCount = $selectedLabels->count();
+                        $defaultSummary = $field->placeholder ?: 'Select options...';
+                        $selectionSummary = $selectedCount === 0
+                            ? $defaultSummary
+                            : ($selectedCount <= 2
+                                ? $selectedLabels->implode(', ')
+                                : "{$selectedCount} selected");
+                    @endphp
+                    <div class="dropdown checkbox-dropdown" data-checkbox-dropdown>
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center @if($fieldError) is-invalid @endif"
+                                type="button"
+                                id="{{ $field->name }}_dropdown"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false">
+                            <span class="text-truncate pe-2" data-checkbox-dropdown-summary>{{ $selectionSummary }}</span>
+                        </button>
+                        <ul class="dropdown-menu w-100 p-2 checkbox-dropdown-menu" aria-labelledby="{{ $field->name }}_dropdown">
+                            @foreach($field->selectable_options as $option)
+                                <li>
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input @if($fieldError) is-invalid @endif" type="checkbox"
+                                               name="{{ $field->name }}[]" value="{{ $option }}"
+                                               id="{{ $field->name }}_dropdown_{{ $loop->index }}"
+                                               data-checkbox-dropdown-option
+                                               {{ array_key_exists($option, $oldCheckboxLookup) ? 'checked' : '' }}
+                                               {{ $fieldDisabledAttr }}>
+                                        <label class="form-check-label" for="{{ $field->name }}_dropdown_{{ $loop->index }}">{{ $option }}</label>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                    @break
                 @case('phone')
                     <input type="tel" name="{{ $field->name }}" id="{{ $field->name }}"
                         class="form-control @error($field->name) is-invalid @enderror"
@@ -205,6 +246,15 @@
 </div>
 <script src="{{ asset('js/form-validation.js') }}" defer></script>
 @endsection
+
+@push('styles')
+<style>
+    .checkbox-dropdown-menu {
+        max-height: 260px;
+        overflow-y: auto;
+    }
+</style>
+@endpush
 
 @push('scripts')
 <script>

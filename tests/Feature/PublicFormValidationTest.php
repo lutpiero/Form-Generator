@@ -7,6 +7,7 @@ use App\Models\FormField;
 use App\Models\FormSubmission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class PublicFormValidationTest extends TestCase
@@ -281,6 +282,123 @@ class PublicFormValidationTest extends TestCase
         $response->assertSee('data-visibility-state="visible"', false);
     }
 
+    public function test_admin_field_builder_includes_checkbox_dropdown_type(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.fields.create', $form))
+            ->assertOk()
+            ->assertSee('<option value="checkbox_dropdown"', false)
+            ->assertSee('Checkbox Dropdown');
+    }
+
+    public function test_public_form_renders_checkbox_dropdown_and_stores_multiple_values(): void
+    {
+        $field = $this->createCheckboxDropdownField();
+
+        $this->get(route('forms.show', $field->form))
+            ->assertOk()
+            ->assertSee('data-checkbox-dropdown', false)
+            ->assertSee('name="preferences[]"', false)
+            ->assertSee('Select options...');
+
+        $response = $this->post(route('forms.submit', $field->form), [
+            'preferences' => ['Fuse Box', 'Cable'],
+        ]);
+
+        $response->assertRedirect(route('forms.success', $field->form));
+
+        $submission = FormSubmission::first();
+        $this->assertNotNull($submission);
+        $this->assertSame(['Fuse Box', 'Cable'], $submission->data['preferences']);
+    }
+
+    public function test_checkbox_dropdown_required_validation_works(): void
+    {
+        $field = $this->createCheckboxDropdownField(['required' => true]);
+
+        $response = $this->from(route('forms.show', $field->form))->post(route('forms.submit', $field->form), []);
+
+        $response->assertRedirect(route('forms.show', $field->form));
+        $response->assertSessionHasErrors(['preferences']);
+        $this->assertDatabaseCount('form_submissions', 0);
+    }
+
+    public function test_checkbox_dropdown_restores_old_input_after_validation_failure(): void
+    {
+        $field = $this->createCheckboxDropdownField(['required' => true]);
+        $field->form->fields()->create([
+            'label' => 'Full Name',
+            'name' => 'full_name',
+            'type' => 'text',
+            'required' => true,
+            'order' => 1,
+        ]);
+
+        $response = $this->followingRedirects()
+            ->from(route('forms.show', $field->form))
+            ->post(route('forms.submit', $field->form), [
+                'preferences' => ['Fuse Box', 'Cable'],
+                'full_name' => '',
+            ]);
+
+        $response->assertOk();
+        $response->assertSee('value="Fuse Box"', false);
+        $response->assertSee('value="Cable"', false);
+        $response->assertSee('Fuse Box, Cable');
+        $this->assertGreaterThanOrEqual(2, substr_count($response->getContent(), 'checked'));
+    }
+
+    public function test_checkbox_dropdown_submission_values_are_readable_in_admin_display_and_exports(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $field = $this->createCheckboxDropdownField();
+        $form = $field->form;
+
+        $submission = $form->submissions()->create([
+            'data' => [
+                'preferences' => ['Fuse Box', 'Cable'],
+            ],
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'PHPUnit',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.submissions.show', [$form, $submission]))
+            ->assertOk()
+            ->assertSee('Fuse Box, Cable');
+
+        $csv = $this->actingAs($admin)->get(route('admin.forms.submissions.export', $form));
+        $csv->assertOk();
+        $this->assertStringContainsString('Fuse Box, Cable', $csv->streamedContent());
+
+        $excel = $this->actingAs($admin)->get(route('admin.forms.submissions.export-excel', $form));
+        $excel->assertOk();
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'xlsx_test_');
+        copy($excel->baseResponse->getFile()->getPathname(), $tempFile);
+        try {
+            $spreadsheet = IOFactory::load($tempFile);
+        } finally {
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+        }
+
+        $summarySheet = $spreadsheet->getSheetByName('Submissions');
+        $this->assertNotNull($summarySheet);
+        $this->assertSame('Preferences', $summarySheet->getCell('C1')->getValue());
+        $this->assertSame('Fuse Box, Cable', $summarySheet->getCell('C2')->getValue());
+    }
+
     private function createCheckboxField(array $overrides = []): FormField
     {
         $form = Form::create([
@@ -297,6 +415,26 @@ class PublicFormValidationTest extends TestCase
             'type' => 'checkbox',
             'options' => json_encode(['Fuse Box', 'Cable', FormField::OTHER_OPTION_VALUE]),
             'config' => ['other_label' => 'Lainnya'],
+            'required' => false,
+            'order' => 0,
+        ], $overrides));
+    }
+
+    private function createCheckboxDropdownField(array $overrides = []): FormField
+    {
+        $form = Form::create([
+            'name' => 'Checklist Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        return $form->fields()->create(array_merge([
+            'label' => 'Preferences',
+            'name' => 'preferences',
+            'type' => 'checkbox_dropdown',
+            'options' => json_encode(['Fuse Box', 'Cable', 'Switch']),
             'required' => false,
             'order' => 0,
         ], $overrides));

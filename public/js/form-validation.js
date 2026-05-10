@@ -23,6 +23,50 @@ document.addEventListener('DOMContentLoaded', () => {
             return toggle.closest('[data-other-option]')?.querySelector('[data-other-input-field]');
         };
 
+        const updateCheckboxDropdownSummary = (group) => {
+            if (!group || group.dataset.fieldType !== 'checkbox_dropdown') {
+                return;
+            }
+
+            const summaryElement = group.querySelector('[data-checkbox-dropdown-summary]');
+
+            if (!summaryElement) {
+                return;
+            }
+
+            const checked = Array.from(group.querySelectorAll('[data-checkbox-dropdown-option]:checked'));
+
+            if (checked.length === 0) {
+                summaryElement.textContent = summaryElement.dataset.placeholder;
+                return;
+            }
+
+            const selectedLabels = checked
+                .map((input) => {
+                    const labelElement = input.closest('.form-check')?.querySelector('.form-check-label');
+                    const label = labelElement ? labelElement.textContent.trim() : '';
+
+                    return label || input.value;
+                })
+                .filter((value) => value !== '');
+
+            summaryElement.textContent = selectedLabels.length <= 2
+                ? selectedLabels.join(', ')
+                : `${selectedLabels.length} selected`;
+        };
+
+        const initializeCheckboxDropdownSummary = (group) => {
+            if (!group || group.dataset.fieldType !== 'checkbox_dropdown') {
+                return;
+            }
+
+            const summaryElement = group.querySelector('[data-checkbox-dropdown-summary]');
+
+            if (summaryElement && !summaryElement.dataset.placeholder) {
+                summaryElement.dataset.placeholder = (summaryElement.textContent || '').trim() || 'Select options...';
+            }
+        };
+
         const updateOtherInputState = (toggle, autoFocus = false) => {
             const input = getOtherInput(toggle);
 
@@ -76,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return group.querySelector('select')?.value ?? '';
             }
 
-            if (type === 'checkbox') {
+            if (type === 'checkbox' || type === 'checkbox_dropdown') {
                 return Array.from(group.querySelectorAll('input[type="checkbox"]:checked'))
                     .map((input) => input.value)
                     .filter((value) => value !== '');
@@ -164,12 +208,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!visible) {
                 clearGroupValues(group);
                 clearGroupErrors(group);
+                updateCheckboxDropdownSummary(group);
                 return;
             }
 
             group.querySelectorAll('[data-other-toggle]').forEach((toggle) => {
                 updateOtherInputState(toggle);
             });
+            updateCheckboxDropdownSummary(group);
         };
 
         const refreshDependentVisibility = (controllerName = null) => {
@@ -199,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return true;
             }
 
-            if (type === 'checkbox') {
+            if (type === 'checkbox' || type === 'checkbox_dropdown') {
                 const checkedBoxes = group.querySelectorAll('input[type="checkbox"]:checked');
                 const otherToggle = group.querySelector('[data-other-toggle]');
                 const otherInput = otherToggle ? getOtherInput(otherToggle) : null;
@@ -215,6 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return false;
                 }
 
+                updateCheckboxDropdownSummary(group);
                 setGroupValidity(group, true);
                 return true;
             }
@@ -282,6 +329,10 @@ document.addEventListener('DOMContentLoaded', () => {
         form.querySelectorAll('[data-other-toggle]').forEach((toggle) => {
             updateOtherInputState(toggle);
         });
+        fieldGroups.forEach((group) => {
+            initializeCheckboxDropdownSummary(group);
+            updateCheckboxDropdownSummary(group);
+        });
 
         refreshDependentVisibility();
 
@@ -297,6 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (changedGroup?.dataset.fieldName) {
+                updateCheckboxDropdownSummary(changedGroup);
                 refreshDependentVisibility(changedGroup.dataset.fieldName);
             }
         });

@@ -13,7 +13,7 @@ class FormField extends Model
     public const OTHER_OPTION_VALUE = '__other__';
     public const OTHER_PREFIX = 'other:';
     public const PHONE_PATTERN = '^[0-9+\s\-]+$';
-    public const OPTION_BASED_TYPES = ['dropdown', 'radio', 'checkbox'];
+    public const OPTION_BASED_TYPES = ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown'];
     public const TABLE_COLUMN_TYPES = ['text', 'email', 'phone', 'number', 'textarea', 'dropdown', 'radio', 'checkbox'];
     public const VISIBILITY_OPERATORS = ['equals', 'not_equals', 'is_empty', 'is_not_empty'];
 
