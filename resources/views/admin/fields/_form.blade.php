@@ -32,6 +32,7 @@
             'dropdown' => 'Dropdown',
             'radio' => 'Radio Buttons',
             'checkbox' => 'Checkboxes',
+            'checkbox_dropdown' => 'Checkbox Dropdown',
             'table' => 'Table / Repeatable Group',
             'section' => 'Section Divider',
         ] as $value => $typeLabel)
@@ -41,7 +42,7 @@
     @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
 </div>
 
-<div class="mb-3" id="optionsGroup" style="{{ in_array($selectedType, ['dropdown','radio','checkbox'], true) ? '' : 'display:none' }}">
+<div class="mb-3" id="optionsGroup" style="{{ in_array($selectedType, ['dropdown','radio','checkbox','checkbox_dropdown'], true) ? '' : 'display:none' }}">
     <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
     <textarea name="options" class="form-control" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3">{{ old('options', isset($field) ? implode("\n", $field->selectable_options) : '') }}</textarea>
 </div>
@@ -505,7 +506,7 @@
     }
 
     function updateFieldVisibility(type) {
-        var showOptions = ['dropdown', 'radio', 'checkbox'].includes(type);
+        var showOptions = ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown'].includes(type);
         var isCheckbox = type === 'checkbox';
         var isSection = type === 'section';
         var isTable = type === 'table';
