@@ -495,6 +495,29 @@ class TableFieldTest extends TestCase
         $response->assertSee('data-visibility-operator="equals"', false);
     }
 
+    public function test_row_level_conditional_checkbox_dropdown_visibility_script_toggles_button_state(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $attributes = $this->tableFieldAttributesWithConditionalColumn();
+        $attributes['config']['columns'][1]['type'] = 'checkbox_dropdown';
+        $attributes['config']['columns'][1]['options'] = ['Opt 1', 'Opt 2'];
+
+        $form->fields()->create($attributes);
+
+        $response = $this->get(route('forms.show', $form));
+
+        $response->assertOk();
+        $response->assertSee('data-column-type="checkbox_dropdown"', false);
+        $response->assertSee("cell.querySelectorAll('input, select, textarea, button')", false);
+    }
+
     public function test_admin_table_column_builder_includes_checkbox_dropdown_type(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

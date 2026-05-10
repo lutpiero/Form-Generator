@@ -455,7 +455,7 @@
 
             var actualValue = getRowCellValue(row, cell.dataset.visibilityField || '');
             var visible = evaluateVisibilityCondition(actualValue, cell.dataset.visibilityOperator || 'equals', cell.dataset.visibilityValue || '');
-            var controls = cell.querySelectorAll('input, select, textarea');
+            var controls = cell.querySelectorAll('input, select, textarea, button');
 
             cell.style.display = visible ? '' : 'none';
             cell.dataset.visibilityState = visible ? 'visible' : 'hidden';
