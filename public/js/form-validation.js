@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 summaryElement.dataset.placeholder = (summaryElement.textContent || '').trim() || 'Select options...';
             }
 
-            const checked = Array.from(group.querySelectorAll('input[type="checkbox"]:checked'));
+            const checked = Array.from(group.querySelectorAll('[data-checkbox-dropdown-option]:checked'));
 
             if (checked.length === 0) {
                 summaryElement.textContent = summaryElement.dataset.placeholder;

@@ -149,9 +149,10 @@
                     @break
                 @case('checkbox_dropdown')
                     @php
-                        $oldCheckboxValues = collect((array) old($field->name, []));
+                        $oldCheckboxValues = array_values((array) old($field->name, []));
+                        $oldCheckboxLookup = array_flip($oldCheckboxValues);
                         $selectedLabels = collect($field->selectable_options)
-                            ->filter(fn ($option) => $oldCheckboxValues->contains($option))
+                            ->filter(fn ($option) => array_key_exists($option, $oldCheckboxLookup))
                             ->values();
                         $selectedCount = $selectedLabels->count();
                         $defaultSummary = $field->placeholder ?: 'Select options...';
@@ -178,7 +179,7 @@
                                                name="{{ $field->name }}[]" value="{{ $option }}"
                                                id="{{ $field->name }}_dropdown_{{ $loop->index }}"
                                                data-checkbox-dropdown-option
-                                               {{ $oldCheckboxValues->contains($option) ? 'checked' : '' }}
+                                               {{ array_key_exists($option, $oldCheckboxLookup) ? 'checked' : '' }}
                                                {{ $fieldDisabledAttr }}>
                                         <label class="form-check-label" for="{{ $field->name }}_dropdown_{{ $loop->index }}">{{ $option }}</label>
                                     </div>
