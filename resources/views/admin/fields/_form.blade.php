@@ -110,7 +110,7 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Column Type <span class="text-danger">*</span></label>
                             <select name="config[columns][{{ $index }}][type]" class="form-select @error("config.columns.$index.type") is-invalid @enderror" data-column-type>
-                                @foreach(['text' => 'Text', 'email' => 'Email', 'phone' => 'Phone Number', 'number' => 'Number', 'textarea' => 'Text Area', 'dropdown' => 'Dropdown', 'radio' => 'Radio Buttons', 'checkbox' => 'Checkboxes'] as $value => $typeLabel)
+                                @foreach(['text' => 'Text', 'email' => 'Email', 'phone' => 'Phone Number', 'number' => 'Number', 'textarea' => 'Text Area', 'dropdown' => 'Dropdown', 'radio' => 'Radio Buttons', 'checkbox' => 'Checkboxes', 'checkbox_dropdown' => 'Checkbox Dropdown'] as $value => $typeLabel)
                                     <option value="{{ $value }}" {{ ($column['type'] ?? 'text') === $value ? 'selected' : '' }}>{{ $typeLabel }}</option>
                                 @endforeach
                             </select>
@@ -123,7 +123,7 @@
                                 <label class="form-check-label">Required column</label>
                             </div>
                         </div>
-                        <div class="col-12 column-options-group" style="{{ in_array($column['type'] ?? 'text', ['dropdown', 'radio', 'checkbox'], true) ? '' : 'display:none' }}">
+                        <div class="col-12 column-options-group" style="{{ in_array($column['type'] ?? 'text', ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown'], true) ? '' : 'display:none' }}">
                             <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
                             <textarea name="config[columns][{{ $index }}][options]" rows="3" class="form-control">{{ is_array($column['options'] ?? []) ? implode("\n", $column['options'] ?? []) : ($column['options'] ?? '') }}</textarea>
                         </div>
@@ -215,7 +215,7 @@
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Column Type <span class="text-danger">*</span></label>
                         <select data-name-template="config[columns][__INDEX__][type]" class="form-select" data-column-type>
-                            @foreach(['text' => 'Text', 'email' => 'Email', 'phone' => 'Phone Number', 'number' => 'Number', 'textarea' => 'Text Area', 'dropdown' => 'Dropdown', 'radio' => 'Radio Buttons', 'checkbox' => 'Checkboxes'] as $value => $typeLabel)
+                            @foreach(['text' => 'Text', 'email' => 'Email', 'phone' => 'Phone Number', 'number' => 'Number', 'textarea' => 'Text Area', 'dropdown' => 'Dropdown', 'radio' => 'Radio Buttons', 'checkbox' => 'Checkboxes', 'checkbox_dropdown' => 'Checkbox Dropdown'] as $value => $typeLabel)
                                 <option value="{{ $value }}">{{ $typeLabel }}</option>
                             @endforeach
                         </select>
@@ -380,7 +380,7 @@
             return;
         }
 
-        var showOptions = ['dropdown', 'radio', 'checkbox'].includes(typeSelect.value);
+        var showOptions = ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown'].includes(typeSelect.value);
         var isCheckbox = typeSelect.value === 'checkbox';
         optionsGroup.style.display = showOptions ? '' : 'none';
         if (customAnswerGroup) {

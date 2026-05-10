@@ -495,6 +495,179 @@ class TableFieldTest extends TestCase
         $response->assertSee('data-visibility-operator="equals"', false);
     }
 
+    public function test_admin_table_column_builder_includes_checkbox_dropdown_type(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'slug' => 'builder-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.forms.fields.create', $form))
+            ->assertOk();
+
+        $this->assertGreaterThanOrEqual(2, substr_count($response->getContent(), 'value="checkbox_dropdown"'));
+    }
+
+    public function test_table_checkbox_dropdown_renders_and_stores_multiple_values(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->tableFieldAttributesWithCheckboxDropdownColumn());
+
+        $this->get(route('forms.show', $form))
+            ->assertOk()
+            ->assertSee('data-column-type="checkbox_dropdown"', false)
+            ->assertSee('data-table-checkbox-dropdown', false)
+            ->assertSee("table_fields[{$field->id}][0][multi_select][]", false);
+
+        $response = $this->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'item_name' => 'Fuse Box',
+                        'multi_select' => ['Opt 1', 'Opt 2'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+
+        $submission = FormSubmission::firstOrFail();
+        $this->assertSame(['Opt 1', 'Opt 2'], $submission->data[$field->name][0]['multi_select']);
+    }
+
+    public function test_table_checkbox_dropdown_required_validation_works(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $attributes = $this->tableFieldAttributesWithCheckboxDropdownColumn();
+        $attributes['config']['columns'][1]['required'] = true;
+        $field = $form->fields()->create($attributes);
+
+        $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'item_name' => 'Fuse Box',
+                        'multi_select' => [],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.show', $form));
+        $response->assertSessionHasErrors("table_fields.{$field->id}.0.multi_select");
+        $this->assertDatabaseCount('form_submissions', 0);
+    }
+
+    public function test_table_checkbox_dropdown_restores_old_input_and_summary_after_validation_failure(): void
+    {
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->tableFieldAttributesWithCheckboxDropdownColumn());
+
+        $response = $this->followingRedirects()
+            ->from(route('forms.show', $form))
+            ->post(route('forms.submit', $form), [
+                'table_fields' => [
+                    $field->id => [
+                        [
+                            '__row' => 1,
+                            'item_name' => '',
+                            'multi_select' => ['Opt 1', 'Opt 2'],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $response->assertOk();
+        $response->assertSee('value="Opt 1"', false);
+        $response->assertSee('value="Opt 2"', false);
+        $response->assertSee('Opt 1, Opt 2');
+        $this->assertGreaterThanOrEqual(2, substr_count($response->getContent(), 'checked'));
+    }
+
+    public function test_table_checkbox_dropdown_template_and_exports_are_readable(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create($this->tableFieldAttributesWithCheckboxDropdownColumn());
+
+        $this->get(route('forms.show', $form))
+            ->assertOk()
+            ->assertSee('<template data-table-row-template>', false)
+            ->assertSee('data-table-checkbox-dropdown-summary', false)
+            ->assertSee('data-table-checkbox-dropdown-option', false);
+
+        $submission = $form->submissions()->create([
+            'data' => [
+                $field->name => [
+                    [
+                        'item_name' => 'Fuse Box',
+                        'multi_select' => ['Opt 1', 'Opt 2'],
+                    ],
+                ],
+            ],
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'PHPUnit',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.submissions.show', [$form, $submission]))
+            ->assertOk()
+            ->assertSee('Opt 1, Opt 2');
+
+        $csv = $this->actingAs($admin)->get(route('admin.forms.submissions.export', $form));
+        $csv->assertOk();
+        $this->assertStringContainsString('Row 1: Item Name: Fuse Box; Multi Select: Opt 1, Opt 2', $csv->streamedContent());
+
+        $excel = $this->actingAs($admin)->get(route('admin.forms.submissions.export-excel', $form));
+        $excel->assertOk();
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'xlsx_test_');
+        file_put_contents($tempFile, file_get_contents($excel->baseResponse->getFile()->getPathname()));
+        $spreadsheet = IOFactory::load($tempFile);
+        @unlink($tempFile);
+
+        $tableSheet = $spreadsheet->getSheetByName("R1_{$field->name}");
+        $this->assertNotNull($tableSheet);
+        $this->assertSame('Multi Select', $tableSheet->getCell('C1')->getValue());
+        $this->assertSame('Opt 1, Opt 2', $tableSheet->getCell('C2')->getValue());
+    }
+
     protected function tableFieldAttributes(): array
     {
         return [
@@ -540,6 +713,24 @@ class TableFieldTest extends TestCase
                             'value' => 'yes',
                         ],
                     ],
+                ],
+            ],
+        ];
+    }
+
+    protected function tableFieldAttributesWithCheckboxDropdownColumn(): array
+    {
+        return [
+            'label' => 'Inventory Items',
+            'name' => 'inventory_items',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => true,
+                'columns' => [
+                    ['key' => 'item_name', 'label' => 'Item Name', 'type' => 'text', 'required' => true, 'options' => []],
+                    ['key' => 'multi_select', 'label' => 'Multi Select', 'type' => 'checkbox_dropdown', 'required' => false, 'options' => ['Opt 1', 'Opt 2', 'Opt 3']],
                 ],
             ],
         ];
