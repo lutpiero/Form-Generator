@@ -265,6 +265,10 @@
     }
 
     function cellHasValue(cell, type) {
+        if (cell.dataset.visibilityState === 'hidden') {
+            return false;
+        }
+
         var inputs = cell.querySelectorAll('input, select, textarea');
 
         if (type === 'checkbox') {
@@ -284,6 +288,106 @@
         });
     }
 
+    function normalizeVisibilityValue(value) {
+        if (Array.isArray(value)) {
+            return value
+                .map(function (item) { return String(item || '').trim(); })
+                .filter(function (item) { return item !== ''; });
+        }
+
+        return String(value || '').trim();
+    }
+
+    function evaluateVisibilityCondition(actualValue, operator, expectedValue) {
+        var normalizedActual = normalizeVisibilityValue(actualValue);
+        var normalizedExpected = String(expectedValue || '').trim();
+        var equals = Array.isArray(normalizedActual)
+            ? normalizedActual.includes(normalizedExpected)
+            : normalizedActual === normalizedExpected;
+        var isEmpty = Array.isArray(normalizedActual)
+            ? normalizedActual.length === 0
+            : normalizedActual === '';
+
+        switch (operator) {
+            case 'not_equals':
+                return !equals;
+            case 'is_empty':
+                return isEmpty;
+            case 'is_not_empty':
+                return !isEmpty;
+            default:
+                return equals;
+        }
+    }
+
+    function clearCellValues(cell) {
+        cell.querySelectorAll('input, select, textarea').forEach(function (control) {
+            if (control.type === 'checkbox' || control.type === 'radio') {
+                control.checked = false;
+            } else if (control.tagName === 'SELECT') {
+                control.selectedIndex = 0;
+            } else {
+                control.value = '';
+            }
+        });
+    }
+
+    function getRowCellValue(row, columnKey) {
+        var cell = row.querySelector('td[data-column-key="' + columnKey + '"]');
+        if (!cell) {
+            return '';
+        }
+
+        if (cell.dataset.columnType === 'checkbox') {
+            return Array.from(cell.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(function (input) { return input.value; })
+                .filter(function (value) { return value !== ''; });
+        }
+
+        if (cell.dataset.columnType === 'radio') {
+            var checked = cell.querySelector('input[type="radio"]:checked');
+            return checked ? checked.value : '';
+        }
+
+        var input = cell.querySelector('input:not([type="hidden"]), select, textarea');
+        return input ? (input.value || '') : '';
+    }
+
+    function syncRowVisibility(row, changedColumnKey) {
+        row.querySelectorAll('td[data-column-type]').forEach(function (cell) {
+            if (cell.dataset.visibilityEnabled !== 'true') {
+                return;
+            }
+
+            if (changedColumnKey && cell.dataset.visibilityField !== changedColumnKey) {
+                return;
+            }
+
+            var actualValue = getRowCellValue(row, cell.dataset.visibilityField || '');
+            var visible = evaluateVisibilityCondition(actualValue, cell.dataset.visibilityOperator || 'equals', cell.dataset.visibilityValue || '');
+            var controls = cell.querySelectorAll('input, select, textarea');
+
+            cell.style.display = visible ? '' : 'none';
+            cell.dataset.visibilityState = visible ? 'visible' : 'hidden';
+
+            controls.forEach(function (control) {
+                control.disabled = !visible;
+            });
+
+            if (!visible) {
+                clearCellValues(cell);
+                clearCellValidation(cell);
+            }
+        });
+    }
+
+    function syncRowVisibilityForCell(cell) {
+        var row = cell.closest('[data-table-row]');
+        if (row) {
+            syncRowVisibility(row);
+        }
+    }
+
     function validateRepeatableTables(form) {
         var valid = true;
 
@@ -293,6 +397,11 @@
 
             tableWrapper.querySelectorAll('[data-table-row]').forEach(function (row) {
                 row.querySelectorAll('td[data-column-type]').forEach(function (cell) {
+                    if (cell.dataset.visibilityState === 'hidden') {
+                        clearCellValidation(cell);
+                        return;
+                    }
+
                     clearCellValidation(cell);
 
                     var otherState = cell.dataset.columnType === 'checkbox' ? getCheckboxOtherState(cell) : null;
@@ -324,6 +433,9 @@
         var template = tableWrapper.querySelector('[data-table-row-template]');
 
         updateTableState(tableWrapper);
+        tableWrapper.querySelectorAll('[data-table-row]').forEach(function (row) {
+            syncRowVisibility(row);
+        });
 
         tableWrapper.addEventListener('click', function (event) {
             var addButton = event.target.closest('.js-table-add-row');
@@ -331,6 +443,10 @@
                 var nextIndex = tbody.querySelectorAll('[data-table-row]').length;
                 var html = template.innerHTML.replace(/__INDEX__/g, nextIndex);
                 tbody.insertAdjacentHTML('beforeend', html);
+                var newRow = tbody.querySelector('[data-table-row]:last-child');
+                if (newRow) {
+                    syncRowVisibility(newRow);
+                }
                 updateTableState(tableWrapper);
                 return;
             }
@@ -348,6 +464,7 @@
         tableWrapper.addEventListener('change', function (event) {
             var cell = event.target.closest('td[data-column-type]');
             if (cell) {
+                syncRowVisibilityForCell(cell);
                 clearCellValidation(cell);
                 var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
                 if (summaryError) {
@@ -359,6 +476,7 @@
         tableWrapper.addEventListener('input', function (event) {
             var cell = event.target.closest('td[data-column-type="checkbox"]');
             if (cell) {
+                syncRowVisibilityForCell(cell);
                 clearCellValidation(cell);
             }
         });

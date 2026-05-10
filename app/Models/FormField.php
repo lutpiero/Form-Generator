@@ -15,8 +15,7 @@ class FormField extends Model
     public const PHONE_PATTERN = '^[0-9+\s\-]+$';
     public const OPTION_BASED_TYPES = ['dropdown', 'radio', 'checkbox'];
     public const TABLE_COLUMN_TYPES = ['text', 'email', 'phone', 'number', 'textarea', 'dropdown', 'radio', 'checkbox'];
-    public const VISIBILITY_CONTROLLER_TYPES = ['radio', 'dropdown'];
-    public const VISIBILITY_OPERATORS = ['equals', 'not_equals'];
+    public const VISIBILITY_OPERATORS = ['equals', 'not_equals', 'is_empty', 'is_not_empty'];
 
     protected $fillable = [
         'form_id',
@@ -103,6 +102,7 @@ class FormField extends Model
                 )),
                 'allow_custom_answer' => $allowCustomAnswer,
                 'other_label' => self::normalizeOtherLabel($column['other_label'] ?? null),
+                'visibility' => self::normalizeColumnVisibilityRule($column['visibility'] ?? null),
             ];
         }, $columns)));
     }
@@ -148,14 +148,86 @@ class FormField extends Model
             return true;
         }
 
-        $actualValue = (string) ($controllerValue ?? '');
-        $expectedValue = $rule['value'];
+        return self::evaluateVisibilityCondition($controllerValue, $rule['operator'], $rule['value']);
+    }
 
-        if ($rule['operator'] === 'not_equals') {
-            return $actualValue !== $expectedValue;
+    public static function evaluateVisibilityCondition(mixed $actualValue, string $operator, mixed $expectedValue = null): bool
+    {
+        $normalizedActual = self::normalizeVisibilityValue($actualValue);
+        $normalizedExpected = trim((string) ($expectedValue ?? ''));
+
+        return match ($operator) {
+            'not_equals' => !self::visibilityEquals($normalizedActual, $normalizedExpected),
+            'is_empty' => self::visibilityIsEmpty($normalizedActual),
+            'is_not_empty' => !self::visibilityIsEmpty($normalizedActual),
+            default => self::visibilityEquals($normalizedActual, $normalizedExpected),
+        };
+    }
+
+    public static function normalizeColumnVisibilityRule(mixed $visibility): ?array
+    {
+        if (!is_array($visibility) || empty($visibility['enabled'])) {
+            return null;
+        }
+
+        $field = trim((string) ($visibility['field'] ?? ''));
+        $operator = trim((string) ($visibility['operator'] ?? ''));
+
+        if ($field === '' || !in_array($operator, self::VISIBILITY_OPERATORS, true)) {
+            return null;
+        }
+
+        return [
+            'enabled' => true,
+            'field' => $field,
+            'operator' => $operator,
+            'value' => trim((string) ($visibility['value'] ?? '')),
+        ];
+    }
+
+    public static function isTableColumnVisible(array $column, array $rowValues): bool
+    {
+        $visibilityRule = self::normalizeColumnVisibilityRule($column['visibility'] ?? null);
+
+        if ($visibilityRule === null) {
+            return true;
+        }
+
+        return self::evaluateVisibilityCondition(
+            $rowValues[$visibilityRule['field']] ?? null,
+            $visibilityRule['operator'],
+            $visibilityRule['value'] ?? null
+        );
+    }
+
+    protected static function normalizeVisibilityValue(mixed $value): string|array
+    {
+        if (is_array($value)) {
+            return array_values(array_filter(array_map(
+                fn ($item) => trim((string) $item),
+                $value
+            ), fn ($item) => $item !== ''));
+        }
+
+        return trim((string) ($value ?? ''));
+    }
+
+    protected static function visibilityEquals(string|array $actualValue, string $expectedValue): bool
+    {
+        if (is_array($actualValue)) {
+            return in_array($expectedValue, $actualValue, true);
         }
 
         return $actualValue === $expectedValue;
+    }
+
+    protected static function visibilityIsEmpty(string|array $actualValue): bool
+    {
+        if (is_array($actualValue)) {
+            return $actualValue === [];
+        }
+
+        return $actualValue === '';
     }
 
     public static function isOtherResponse(mixed $value): bool

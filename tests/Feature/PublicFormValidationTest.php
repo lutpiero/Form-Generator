@@ -263,6 +263,24 @@ class PublicFormValidationTest extends TestCase
         $this->assertArrayNotHasKey('company_name', $submission->data);
     }
 
+    public function test_conditional_field_supports_is_not_empty_operator(): void
+    {
+        [$form] = $this->createConditionalVisibilityForm(
+            controllerType: 'text',
+            controllerName: 'employment_status',
+            operator: 'is_not_empty',
+            value: ''
+        );
+
+        $response = $this
+            ->withSession(['_old_input' => ['employment_status' => 'any value']])
+            ->get(route('forms.show', $form));
+
+        $response->assertOk();
+        $response->assertSee('data-visibility-operator="is_not_empty"', false);
+        $response->assertSee('data-visibility-state="visible"', false);
+    }
+
     private function createCheckboxField(array $overrides = []): FormField
     {
         $form = Form::create([
@@ -284,7 +302,12 @@ class PublicFormValidationTest extends TestCase
         ], $overrides));
     }
 
-    private function createConditionalVisibilityForm(): array
+    private function createConditionalVisibilityForm(
+        string $controllerType = 'radio',
+        string $controllerName = 'employment_status',
+        string $operator = 'equals',
+        string $value = 'employed'
+    ): array
     {
         $form = Form::create([
             'name' => 'Employment Form',
@@ -296,9 +319,9 @@ class PublicFormValidationTest extends TestCase
 
         $controllerField = $form->fields()->create([
             'label' => 'Employment Status',
-            'name' => 'employment_status',
-            'type' => 'radio',
-            'options' => json_encode(['employed', 'unemployed']),
+            'name' => $controllerName,
+            'type' => $controllerType,
+            'options' => in_array($controllerType, ['radio', 'dropdown'], true) ? json_encode(['employed', 'unemployed']) : null,
             'required' => true,
             'order' => 0,
         ]);
@@ -313,8 +336,8 @@ class PublicFormValidationTest extends TestCase
                 'visibility' => [
                     'enabled' => true,
                     'field_id' => $controllerField->id,
-                    'operator' => 'equals',
-                    'value' => 'employed',
+                    'operator' => $operator,
+                    'value' => $value,
                 ],
             ],
         ]);
