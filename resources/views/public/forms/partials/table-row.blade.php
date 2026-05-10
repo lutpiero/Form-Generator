@@ -134,6 +134,53 @@
                     </div>
                     @break
 
+                @case('checkbox_dropdown')
+                    @php
+                        $checkboxValues = collect((array) $columnValue);
+                        $selectedLabels = collect($column['options'] ?? [])
+                            ->filter(fn ($option) => $checkboxValues->contains($option))
+                            ->values();
+                        $selectedCount = $selectedLabels->count();
+                        $defaultSummary = 'Select options...';
+                        $selectionSummary = $selectedCount === 0
+                            ? $defaultSummary
+                            : ($selectedCount <= 2
+                                ? $selectedLabels->implode(', ')
+                                : "{$selectedCount} selected");
+                    @endphp
+                    <div class="dropdown checkbox-dropdown checkbox-dropdown-sm" data-table-checkbox-dropdown>
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center {{ $isInvalid ? 'is-invalid' : '' }}"
+                                type="button"
+                                id="{{ $field->id }}_{{ $rowIndex }}_{{ $columnKey }}_dropdown"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside"
+                                aria-expanded="false"
+                                {{ $columnDisabledAttr }}>
+                            <span class="text-truncate pe-2" data-table-checkbox-dropdown-summary data-placeholder="{{ $defaultSummary }}">{{ $selectionSummary }}</span>
+                        </button>
+                        <ul class="dropdown-menu w-100 p-2 checkbox-dropdown-menu" aria-labelledby="{{ $field->id }}_{{ $rowIndex }}_{{ $columnKey }}_dropdown">
+                            @foreach($column['options'] ?? [] as $optionIndex => $option)
+                                @php $checkboxInputId = "{$field->id}_{$rowIndex}_{$columnKey}_dropdown_{$optionIndex}"; @endphp
+                                <li>
+                                    <div class="form-check mb-0">
+                                        <input
+                                            class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
+                                            type="checkbox"
+                                            name="{{ $baseName }}[{{ $columnKey }}][]"
+                                            value="{{ $option }}"
+                                            id="{{ $checkboxInputId }}"
+                                            data-table-checkbox-dropdown-option
+                                            {{ $checkboxValues->contains($option) ? 'checked' : '' }}
+                                            {{ $columnDisabledAttr }}
+                                        >
+                                        <label class="form-check-label small" for="{{ $checkboxInputId }}">{{ $option }}</label>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                    @break
+
                 @case('phone')
                     <input
                         type="tel"

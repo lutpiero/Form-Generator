@@ -314,6 +314,46 @@
         };
     }
 
+    function initializeTableCheckboxDropdownSummary(cell) {
+        if (!cell || cell.dataset.columnType !== 'checkbox_dropdown') {
+            return;
+        }
+
+        var summaryElement = cell.querySelector('[data-table-checkbox-dropdown-summary]');
+        if (summaryElement && !summaryElement.dataset.placeholder) {
+            summaryElement.dataset.placeholder = (summaryElement.textContent || '').trim() || 'Select options...';
+        }
+    }
+
+    function updateTableCheckboxDropdownSummary(cell) {
+        if (!cell || cell.dataset.columnType !== 'checkbox_dropdown') {
+            return;
+        }
+
+        var summaryElement = cell.querySelector('[data-table-checkbox-dropdown-summary]');
+        if (!summaryElement) {
+            return;
+        }
+
+        var checked = Array.from(cell.querySelectorAll('[data-table-checkbox-dropdown-option]:checked'));
+        if (checked.length === 0) {
+            summaryElement.textContent = summaryElement.dataset.placeholder || 'Select options...';
+            return;
+        }
+
+        var selectedLabels = checked
+            .map(function (input) {
+                var labelElement = input.closest('.form-check')?.querySelector('.form-check-label');
+                var label = labelElement ? labelElement.textContent.trim() : '';
+                return label || input.value;
+            })
+            .filter(function (value) { return value !== ''; });
+
+        summaryElement.textContent = selectedLabels.length <= 2
+            ? selectedLabels.join(', ')
+            : selectedLabels.length + ' selected';
+    }
+
     function cellHasValue(cell, type) {
         if (cell.dataset.visibilityState === 'hidden') {
             return false;
@@ -321,7 +361,7 @@
 
         var inputs = cell.querySelectorAll('input, select, textarea');
 
-        if (type === 'checkbox') {
+        if (type === 'checkbox' || type === 'checkbox_dropdown') {
             return Array.from(inputs).some(function (input) {
                 return input.type === 'checkbox' && input.checked;
             });
@@ -388,7 +428,7 @@
             return '';
         }
 
-        if (cell.dataset.columnType === 'checkbox') {
+        if (cell.dataset.columnType === 'checkbox' || cell.dataset.columnType === 'checkbox_dropdown') {
             return Array.from(cell.querySelectorAll('input[type="checkbox"]:checked'))
                 .map(function (input) { return input.value; })
                 .filter(function (value) { return value !== ''; });
@@ -427,7 +467,11 @@
             if (!visible) {
                 clearCellValues(cell);
                 clearCellValidation(cell);
+                updateTableCheckboxDropdownSummary(cell);
+                return;
             }
+
+            updateTableCheckboxDropdownSummary(cell);
         });
     }
 
@@ -484,6 +528,10 @@
 
         updateTableState(tableWrapper);
         tableWrapper.querySelectorAll('[data-table-row]').forEach(function (row) {
+            row.querySelectorAll('td[data-column-type="checkbox_dropdown"]').forEach(function (cell) {
+                initializeTableCheckboxDropdownSummary(cell);
+                updateTableCheckboxDropdownSummary(cell);
+            });
             syncRowVisibility(row);
         });
 
@@ -495,6 +543,10 @@
                 tbody.insertAdjacentHTML('beforeend', html);
                 var newRow = tbody.querySelector('[data-table-row]:last-child');
                 if (newRow) {
+                    newRow.querySelectorAll('td[data-column-type="checkbox_dropdown"]').forEach(function (cell) {
+                        initializeTableCheckboxDropdownSummary(cell);
+                        updateTableCheckboxDropdownSummary(cell);
+                    });
                     syncRowVisibility(newRow);
                 }
                 updateTableState(tableWrapper);
@@ -516,6 +568,7 @@
             if (cell) {
                 syncRowVisibilityForCell(cell);
                 clearCellValidation(cell);
+                updateTableCheckboxDropdownSummary(cell);
                 var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
                 if (summaryError) {
                     summaryError.classList.add('d-none');
@@ -524,10 +577,11 @@
         });
 
         tableWrapper.addEventListener('input', function (event) {
-            var cell = event.target.closest('td[data-column-type="checkbox"]');
+            var cell = event.target.closest('td[data-column-type="checkbox"], td[data-column-type="checkbox_dropdown"]');
             if (cell) {
                 syncRowVisibilityForCell(cell);
                 clearCellValidation(cell);
+                updateTableCheckboxDropdownSummary(cell);
             }
         });
     });

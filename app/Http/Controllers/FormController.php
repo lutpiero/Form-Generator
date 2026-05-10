@@ -224,9 +224,9 @@ class FormController extends Controller
                 $key = $column['key'];
                 $value = $row[$key] ?? null;
 
-                if ($column['type'] === 'checkbox') {
+                if (in_array($column['type'], ['checkbox', 'checkbox_dropdown'], true)) {
                     $value = array_values(array_filter((array) $value, fn ($item) => $item !== null && $item !== ''));
-                    if (!empty($column['allow_custom_answer']) && in_array(FormField::OTHER_OPTION_VALUE, $value, true)) {
+                    if ($column['type'] === 'checkbox' && !empty($column['allow_custom_answer']) && in_array(FormField::OTHER_OPTION_VALUE, $value, true)) {
                         $otherValue = trim((string) ($row[$this->tableOtherInputKey($key)] ?? ''));
                         $value = array_map(
                             fn ($item) => $item === FormField::OTHER_OPTION_VALUE ? FormField::formatOtherResponse($otherValue) : $item,
@@ -333,7 +333,7 @@ class FormController extends Controller
 
     protected function tableColumnValueIsEmpty(array $column, mixed $value): bool
     {
-        if ($column['type'] === 'checkbox') {
+        if (in_array($column['type'], ['checkbox', 'checkbox_dropdown'], true)) {
             return array_values(array_filter((array) $value, fn ($item) => $item !== null && $item !== '')) === [];
         }
 
@@ -369,8 +369,9 @@ class FormController extends Controller
                 }
                 return empty($column['options']) || in_array((string) $value, $column['options'], true);
             case 'checkbox':
+            case 'checkbox_dropdown':
                 $options = $column['options'] ?? [];
-                if (!empty($column['allow_custom_answer'])) {
+                if ($column['type'] === 'checkbox' && !empty($column['allow_custom_answer'])) {
                     $options[] = FormField::OTHER_OPTION_VALUE;
                 }
 
@@ -396,7 +397,7 @@ class FormController extends Controller
             'email' => 'Please enter a valid email address.',
             'phone' => 'Please enter a valid phone number.',
             'number' => 'This field must be a number.',
-            'dropdown', 'radio', 'checkbox' => 'Please select a valid option.',
+            'dropdown', 'radio', 'checkbox', 'checkbox_dropdown' => 'Please select a valid option.',
             default => 'Invalid value.',
         };
     }
