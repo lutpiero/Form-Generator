@@ -5,6 +5,11 @@
     $tableColumns = is_array($tableColumns) ? $tableColumns : [];
     $customAnswerEnabled = old('allow_custom_answer', isset($field) ? $field->hasOtherOption() : false);
     $customAnswerLabel = old('other_label', isset($field) ? $field->other_label : \App\Models\FormField::DEFAULT_OTHER_LABEL);
+    $visibilityRule = old('visibility', $fieldConfig['visibility'] ?? []);
+    $visibilityEnabled = old('visibility.enabled', !empty($visibilityRule['enabled']));
+    $visibilityFieldId = old('visibility.field_id', $visibilityRule['field_id'] ?? '');
+    $visibilityOperator = old('visibility.operator', $visibilityRule['operator'] ?? 'equals');
+    $visibilityValue = old('visibility.value', $visibilityRule['value'] ?? '');
 @endphp
 
 <div class="mb-3" id="labelGroup">
@@ -222,6 +227,46 @@
     </div>
 </div>
 
+<div class="border rounded p-3 bg-light-subtle mb-3" id="visibilityConfigGroup" style="{{ in_array($selectedType, ['section', 'table'], true) ? 'display:none' : '' }}">
+    <h6 class="mb-3">Conditional Visibility</h6>
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" name="visibility[enabled]" id="visibility_enabled" value="1"
+               {{ $visibilityEnabled ? 'checked' : '' }}>
+        <label class="form-check-label fw-semibold" for="visibility_enabled">Enable conditional visibility</label>
+    </div>
+
+    <div id="visibilityDetailsGroup" style="{{ $visibilityEnabled ? '' : 'display:none' }}">
+        <div class="mb-3">
+            <label class="form-label fw-semibold" for="visibility_field_id">Controlling field</label>
+            <select name="visibility[field_id]" id="visibility_field_id" class="form-select @error('visibility.field_id') is-invalid @enderror">
+                <option value="">Select a field</option>
+                @foreach($visibilityControllerFields as $controllerField)
+                    <option value="{{ $controllerField->id }}" {{ (string) $visibilityFieldId === (string) $controllerField->id ? 'selected' : '' }}>
+                        {{ $controllerField->label }} ({{ $controllerField->name }})
+                    </option>
+                @endforeach
+            </select>
+            @error('visibility.field_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold" for="visibility_operator">Operator</label>
+            <select name="visibility[operator]" id="visibility_operator" class="form-select @error('visibility.operator') is-invalid @enderror">
+                <option value="equals" {{ $visibilityOperator === 'equals' ? 'selected' : '' }}>equals</option>
+                <option value="not_equals" {{ $visibilityOperator === 'not_equals' ? 'selected' : '' }}>not equals</option>
+            </select>
+            @error('visibility.operator')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+
+        <div>
+            <label class="form-label fw-semibold" for="visibility_value">Expected value</label>
+            <input type="text" name="visibility[value]" id="visibility_value" class="form-control @error('visibility.value') is-invalid @enderror"
+                   value="{{ $visibilityValue }}" placeholder="e.g. employed">
+            @error('visibility.value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 (function() {
@@ -232,6 +277,9 @@
     var allowCustomAnswer = document.getElementById('allow_custom_answer');
     var inputOnlyFields = document.getElementById('inputOnlyFields');
     var tableConfigGroup = document.getElementById('tableConfigGroup');
+    var visibilityConfigGroup = document.getElementById('visibilityConfigGroup');
+    var visibilityEnabled = document.getElementById('visibility_enabled');
+    var visibilityDetailsGroup = document.getElementById('visibilityDetailsGroup');
     var placeholderGroup = document.getElementById('placeholderGroup');
     var placeholderLabel = document.getElementById('placeholderLabel');
     var placeholderInput = document.getElementById('placeholderInput');
@@ -333,6 +381,7 @@
             customAnswerLabelGroup.style.display = isCheckbox && allowCustomAnswer && allowCustomAnswer.checked ? '' : 'none';
         }
         inputOnlyFields.style.display = (isSection || isTable) ? 'none' : '';
+        visibilityConfigGroup.style.display = (isSection || isTable) ? 'none' : '';
 
         if (isSection) {
             labelText.innerHTML = 'Section Title <span class="text-danger">*</span>';
@@ -361,6 +410,14 @@
         allowCustomAnswer.addEventListener('change', function() {
             if (customAnswerLabelGroup) {
                 customAnswerLabelGroup.style.display = this.checked ? '' : 'none';
+            }
+        });
+    }
+
+    if (visibilityEnabled) {
+        visibilityEnabled.addEventListener('change', function() {
+            if (visibilityDetailsGroup) {
+                visibilityDetailsGroup.style.display = this.checked ? '' : 'none';
             }
         });
     }

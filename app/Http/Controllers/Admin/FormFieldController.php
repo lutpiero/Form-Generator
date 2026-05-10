@@ -12,7 +12,9 @@ class FormFieldController extends Controller
 {
     public function create(Form $form)
     {
-        return view('admin.fields.create', compact('form'));
+        $visibilityControllerFields = $this->visibilityControllerFields($form);
+
+        return view('admin.fields.create', compact('form', 'visibilityControllerFields'));
     }
 
     public function store(Request $request, Form $form)
@@ -35,6 +37,10 @@ class FormFieldController extends Controller
             'config.columns.*.allow_custom_answer' => 'sometimes|boolean',
             'config.columns.*.other_label' => 'nullable|string|max:255',
             'config.columns.*.options' => 'nullable',
+            'visibility.enabled' => 'sometimes|boolean',
+            'visibility.field_id' => 'nullable|integer',
+            'visibility.operator' => 'nullable|in:equals,not_equals',
+            'visibility.value' => 'nullable|string|max:255',
         ]);
 
         $validated['form_id'] = $form->id;
@@ -43,7 +49,7 @@ class FormFieldController extends Controller
         $validated['required'] = !in_array($validated['type'], ['section', 'table'], true)
             && $request->boolean('required', false);
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
-        $validated['config'] = $this->prepareConfig($request, $validated['type']);
+        $validated['config'] = $this->prepareConfig($request, $form, $validated['type']);
         unset($validated['allow_custom_answer']);
 
         $form->fields()->create($validated);
@@ -54,7 +60,9 @@ class FormFieldController extends Controller
 
     public function edit(Form $form, FormField $field)
     {
-        return view('admin.fields.edit', compact('form', 'field'));
+        $visibilityControllerFields = $this->visibilityControllerFields($form, $field);
+
+        return view('admin.fields.edit', compact('form', 'field', 'visibilityControllerFields'));
     }
 
     public function update(Request $request, Form $form, FormField $field)
@@ -78,13 +86,17 @@ class FormFieldController extends Controller
             'config.columns.*.allow_custom_answer' => 'sometimes|boolean',
             'config.columns.*.other_label' => 'nullable|string|max:255',
             'config.columns.*.options' => 'nullable',
+            'visibility.enabled' => 'sometimes|boolean',
+            'visibility.field_id' => 'nullable|integer',
+            'visibility.operator' => 'nullable|in:equals,not_equals',
+            'visibility.value' => 'nullable|string|max:255',
         ]);
 
         $validated['name'] = $this->sanitizeName($validated['label']);
         $validated['required'] = !in_array($validated['type'], ['section', 'table'], true)
             && $request->boolean('required', false);
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
-        $validated['config'] = $this->prepareConfig($request, $validated['type']);
+        $validated['config'] = $this->prepareConfig($request, $form, $validated['type'], $field);
         unset($validated['allow_custom_answer']);
 
         $field->update($validated);
@@ -134,18 +146,28 @@ class FormFieldController extends Controller
         return empty($optionsArray) ? null : json_encode(array_values(array_unique($optionsArray)));
     }
 
-    private function prepareConfig(Request $request, string $type): ?array
+    private function prepareConfig(Request $request, Form $form, string $type, ?FormField $currentField = null): ?array
     {
+        if ($type === 'table') {
+            return $this->prepareTableConfig($request);
+        }
+
+        $config = [];
+
         if ($type === 'checkbox' && $request->boolean('allow_custom_answer', false)) {
-            return [
-                'other_label' => FormField::normalizeOtherLabel($request->input('other_label')),
-            ];
+            $config['other_label'] = FormField::normalizeOtherLabel($request->input('other_label'));
         }
 
-        if ($type !== 'table') {
-            return null;
+        $visibilityConfig = $this->prepareVisibilityConfig($request, $form, $type, $currentField);
+        if ($visibilityConfig !== null) {
+            $config['visibility'] = $visibilityConfig;
         }
 
+        return $config === [] ? null : $config;
+    }
+
+    private function prepareTableConfig(Request $request): array
+    {
         $columns = [];
         foreach ((array) $request->input('config.columns', []) as $index => $column) {
             if (!is_array($column)) {
@@ -190,6 +212,53 @@ class FormFieldController extends Controller
             'columns' => $columns,
         ];
     }
+
+    private function prepareVisibilityConfig(Request $request, Form $form, string $type, ?FormField $currentField = null): ?array
+    {
+        if (in_array($type, ['table', 'section'], true) || !$request->boolean('visibility.enabled', false)) {
+            return null;
+        }
+
+        $controllerFieldId = (int) $request->input('visibility.field_id');
+        $operator = (string) $request->input('visibility.operator');
+        $expectedValue = trim((string) $request->input('visibility.value'));
+
+        if ($controllerFieldId <= 0) {
+            throw ValidationException::withMessages([
+                'visibility.field_id' => 'Please select a controlling field.',
+            ]);
+        }
+
+        if (!in_array($operator, FormField::VISIBILITY_OPERATORS, true)) {
+            throw ValidationException::withMessages([
+                'visibility.operator' => 'Please select a valid visibility operator.',
+            ]);
+        }
+
+        if ($expectedValue === '') {
+            throw ValidationException::withMessages([
+                'visibility.value' => 'Please enter an expected value.',
+            ]);
+        }
+
+        $controllerField = $form->fields()
+            ->where('id', $controllerFieldId)
+            ->whereIn('type', FormField::VISIBILITY_CONTROLLER_TYPES)
+            ->first();
+
+        if ($controllerField === null || ($currentField && $controllerField->id === $currentField->id)) {
+            throw ValidationException::withMessages([
+                'visibility.field_id' => 'Please select a valid controlling field.',
+            ]);
+        }
+
+        return [
+            'enabled' => true,
+            'field_id' => $controllerField->id,
+            'operator' => $operator,
+            'value' => $expectedValue,
+        ];
+    }
     private function ensureUniqueColumnKey(string $key, array $columns): string
     {
         $existingKeys = array_column($columns, 'key');
@@ -211,5 +280,13 @@ class FormFieldController extends Controller
         $name = trim($name, '_');
 
         return $name !== '' ? $name : 'field';
+    }
+
+    private function visibilityControllerFields(Form $form, ?FormField $currentField = null)
+    {
+        return $form->fields()
+            ->whereIn('type', FormField::VISIBILITY_CONTROLLER_TYPES)
+            ->when($currentField !== null, fn ($query) => $query->where('id', '!=', $currentField->id))
+            ->get();
     }
 }

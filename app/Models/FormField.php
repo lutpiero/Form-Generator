@@ -15,6 +15,8 @@ class FormField extends Model
     public const PHONE_PATTERN = '^[0-9+\s\-]+$';
     public const OPTION_BASED_TYPES = ['dropdown', 'radio', 'checkbox'];
     public const TABLE_COLUMN_TYPES = ['text', 'email', 'phone', 'number', 'textarea', 'dropdown', 'radio', 'checkbox'];
+    public const VISIBILITY_CONTROLLER_TYPES = ['radio', 'dropdown'];
+    public const VISIBILITY_OPERATORS = ['equals', 'not_equals'];
 
     protected $fillable = [
         'form_id',
@@ -113,6 +115,47 @@ class FormField extends Model
     public function getOtherInputNameAttribute(): string
     {
         return "{$this->name}_other";
+    }
+
+    public function getVisibilityRuleAttribute(): ?array
+    {
+        $visibility = is_array($this->config) ? ($this->config['visibility'] ?? null) : null;
+
+        if (!is_array($visibility) || empty($visibility['enabled'])) {
+            return null;
+        }
+
+        $fieldId = (int) ($visibility['field_id'] ?? 0);
+        $operator = (string) ($visibility['operator'] ?? '');
+
+        if ($fieldId <= 0 || !in_array($operator, self::VISIBILITY_OPERATORS, true)) {
+            return null;
+        }
+
+        return [
+            'enabled' => true,
+            'field_id' => $fieldId,
+            'operator' => $operator,
+            'value' => (string) ($visibility['value'] ?? ''),
+        ];
+    }
+
+    public function passesVisibilityCondition(mixed $controllerValue): bool
+    {
+        $rule = $this->visibility_rule;
+
+        if ($rule === null) {
+            return true;
+        }
+
+        $actualValue = (string) ($controllerValue ?? '');
+        $expectedValue = $rule['value'];
+
+        if ($rule['operator'] === 'not_equals') {
+            return $actualValue !== $expectedValue;
+        }
+
+        return $actualValue === $expectedValue;
     }
 
     public static function isOtherResponse(mixed $value): bool

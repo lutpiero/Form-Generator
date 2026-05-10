@@ -54,6 +54,12 @@ class FormController extends Controller
         $rules = [];
         $messages = [];
         $attributes = [];
+        $fieldsById = $form->fields->keyBy('id');
+        $visibleFieldIds = [];
+
+        foreach ($form->fields as $field) {
+            $visibleFieldIds[$field->id] = $this->isFieldVisible($field, $request, $fieldsById);
+        }
 
         foreach ($form->fields as $field) {
             if ($field->type === 'section') {
@@ -62,6 +68,10 @@ class FormController extends Controller
 
             if ($field->type === 'table') {
                 $rules = array_merge($rules, $this->buildTableFieldRules($field));
+                continue;
+            }
+
+            if (!($visibleFieldIds[$field->id] ?? true)) {
                 continue;
             }
 
@@ -172,6 +182,10 @@ class FormController extends Controller
             if ($field->type === 'table') {
                 $tableRows = $validated['table_fields'][$field->id] ?? [];
                 $data[$field->name] = $this->normalizeTableRows($field, is_array($tableRows) ? $tableRows : []);
+                continue;
+            }
+
+            if (!($visibleFieldIds[$field->id] ?? true)) {
                 continue;
             }
 
@@ -307,5 +321,22 @@ class FormController extends Controller
     protected function tableOtherInputKey(string $columnKey): string
     {
         return "{$columnKey}_other";
+    }
+
+    protected function isFieldVisible(FormField $field, Request $request, $fieldsById): bool
+    {
+        $visibilityRule = $field->visibility_rule;
+
+        if ($visibilityRule === null) {
+            return true;
+        }
+
+        $controllerField = $fieldsById->get($visibilityRule['field_id']);
+
+        if (!$controllerField || !in_array($controllerField->type, FormField::VISIBILITY_CONTROLLER_TYPES, true)) {
+            return true;
+        }
+
+        return $field->passesVisibilityCondition($request->input($controllerField->name));
     }
 }
