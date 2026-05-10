@@ -45,8 +45,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const getCheckboxLabel = (input) => {
+                const labelElement = input.closest('.form-check')?.querySelector('.form-check-label');
+                const label = labelElement ? labelElement.textContent.trim() : '';
+
+                return label || input.value;
+            };
+
             const selectedLabels = checked
-                .map((input) => input.closest('.form-check')?.querySelector('.form-check-label')?.textContent?.trim() || input.value)
+                .map((input) => getCheckboxLabel(input))
                 .filter((value) => value !== '');
 
             summaryElement.textContent = selectedLabels.length <= 2

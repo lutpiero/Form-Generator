@@ -384,7 +384,7 @@ class PublicFormValidationTest extends TestCase
         $excel->assertOk();
 
         $tempFile = tempnam(sys_get_temp_dir(), 'xlsx_test_');
-        file_put_contents($tempFile, file_get_contents($excel->baseResponse->getFile()->getPathname()));
+        copy($excel->baseResponse->getFile()->getPathname(), $tempFile);
         $spreadsheet = IOFactory::load($tempFile);
         @unlink($tempFile);
 
