@@ -254,10 +254,11 @@ php artisan test
 |---|---|---|---|---|
 | TC-001 | Happy path – submit valid registration data | Full Name: `Alya Pratama`, Email: `alya.pratama@example.com`, Phone: `081234567890`, Age: `29`, Address: `Jl. Merdeka No. 10` | Form submits successfully and shows success message: `Your submission has been received.` | - [ ] |
 | TC-002 | Boundary check – minimum allowed name length | Full Name: `Al`, Email: `al@example.com`, Phone: `081111111111`, Age: `18`, Address: `Jl. Mawar 1` | Submission succeeds when name length is at minimum valid boundary. | - [ ] |
-| TC-003 | Boundary check – maximum allowed name length | Full Name: `ABCDEFGHIJKLMNOPQRSTUVWXYZABCD` (30 chars), Email: `max.name@example.com`, Phone: `082222222222`, Age: `45`, Address: `Jl. Kenanga 77` | Submission succeeds when name length is at maximum valid boundary. | - [ ] |
+| TC-003 | Boundary check – maximum allowed name length | Full Name: `ABCDEFGHIJKLMNOPQRSTUVWXYZABCD`, Email: `max.name@example.com`, Phone: `082222222222`, Age: `45`, Address: `Jl. Kenanga 77` | Submission succeeds when name length is at maximum valid boundary. | - [ ] |
 | TC-004 | Negative test – invalid email format | Full Name: `Rina Putri`, Email: `rina.putri@`, Phone: `083333333333`, Age: `26`, Address: `Jl. Melati 5` | Validation error shown for email field: `Please enter a valid email address.` | - [ ] |
 | TC-005 | Negative test – required field left empty | Full Name: *(empty)*, Email: `bimo@example.com`, Phone: `084444444444`, Age: `31`, Address: `Jl. Anggrek 3` | Validation error shown for full name field: `The Full Name field is required.` | - [ ] |
-| TC-006 | Negative test – non-numeric value in numeric field | Full Name: `Dewi Lestari`, Email: `dewi@example.com`, Phone: `08ABCDE12345`, Age: `twenty`, Address: `Jl. Flamboyan 12` | Validation error shown for numeric fields (Phone/Age): `must be a valid number`. | - [ ] |
+| TC-006 | Negative test – invalid phone number format | Full Name: `Dewi Lestari`, Email: `dewi@example.com`, Phone: `08ABCDE12345`, Age: `25`, Address: `Jl. Flamboyan 12` | Validation error shown for phone field: `Please enter a valid phone number.` | - [ ] |
+| TC-007 | Negative test – non-numeric value in age field | Full Name: `Arga Saputra`, Email: `arga.saputra@example.com`, Phone: `085555555555`, Age: `twenty`, Address: `Jl. Cempaka 9` | Validation error shown for age field: `Please enter a valid number for age.` | - [ ] |
 
 ---
 
