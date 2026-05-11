@@ -275,6 +275,20 @@
                 removeButton.disabled = rows.length === 1;
             }
         });
+
+        var maxRows = parseInt(tableWrapper.dataset.maxRows, 10);
+        if (maxRows > 0) {
+            var addButton = tableWrapper.querySelector('.js-table-add-row');
+            var maxMsg = tableWrapper.querySelector('.js-table-max-rows-msg');
+            var atLimit = rows.length >= maxRows;
+            if (addButton) {
+                addButton.disabled = atLimit;
+                addButton.style.display = atLimit ? 'none' : '';
+            }
+            if (maxMsg) {
+                maxMsg.classList.toggle('d-none', !atLimit);
+            }
+        }
     }
 
     function clearCellValidation(cell) {

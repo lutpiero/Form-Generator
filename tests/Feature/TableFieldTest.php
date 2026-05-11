@@ -1016,4 +1016,253 @@ class TableFieldTest extends TestCase
         $response->assertSee('Other Radio');
         $response->assertSee('Other Dropdown');
     }
+
+    public function test_max_rows_is_saved_and_retrieved_from_config(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Max Rows Form',
+            'slug' => 'max-rows-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.forms.fields.store', $form), [
+                'label' => 'Limited Table',
+                'type' => 'table',
+                'config' => [
+                    'max_rows' => '3',
+                    'columns' => [
+                        ['label' => 'Item', 'type' => 'text', 'required' => '1'],
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('admin.forms.show', $form));
+
+        $field = $form->fields()->where('type', 'table')->first();
+        $this->assertNotNull($field);
+        $this->assertSame(3, $field->table_max_rows);
+    }
+
+    public function test_max_rows_zero_means_no_limit(): void
+    {
+        $field = \App\Models\FormField::make([
+            'type' => 'table',
+            'config' => ['auto_number' => false, 'max_rows' => 0, 'columns' => []],
+        ]);
+
+        $this->assertSame(0, $field->table_max_rows);
+    }
+
+    public function test_max_rows_not_set_means_no_limit(): void
+    {
+        $field = \App\Models\FormField::make([
+            'type' => 'table',
+            'config' => ['auto_number' => false, 'columns' => []],
+        ]);
+
+        $this->assertSame(0, $field->table_max_rows);
+    }
+
+    public function test_public_form_shows_data_max_rows_attribute_and_add_button_when_below_limit(): void
+    {
+        $form = Form::create([
+            'name' => 'Max Rows Form',
+            'slug' => 'max-rows-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Items',
+            'name' => 'items',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'max_rows' => 3,
+                'columns' => [
+                    ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => false, 'options' => []],
+                ],
+            ],
+        ]);
+
+        $response = $this->get(route('forms.show', $form));
+        $response->assertOk();
+        $response->assertSee('data-max-rows="3"', false);
+        // Add button should be visible (1 initial row < 3 limit)
+        $response->assertSee('js-table-add-row');
+        // Button should NOT be hidden since we are below the limit
+        $this->assertStringNotContainsString('js-table-add-row" disabled', $response->getContent());
+    }
+
+    public function test_public_form_hides_add_button_when_prefilled_rows_reach_limit(): void
+    {
+        $form = Form::create([
+            'name' => 'Max Rows Form',
+            'slug' => 'max-rows-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Items',
+            'name' => 'items',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'max_rows' => 2,
+                'columns' => [
+                    ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => true, 'options' => []],
+                ],
+            ],
+        ]);
+
+        // Simulate old input with 2 rows (at the limit) by posting with a missing required field
+        $response = $this->followingRedirects()
+            ->from(route('forms.show', $form))
+            ->post(route('forms.submit', $form), [
+                'table_fields' => [
+                    $field->id => [
+                        ['__row' => 1, 'name' => ''],
+                        ['__row' => 2, 'name' => ''],
+                    ],
+                ],
+            ]);
+
+        $response->assertOk();
+        // At limit: add button must be hidden
+        $response->assertSee('display:none', false);
+        // Max rows message should be visible
+        $response->assertSee('Maximum of 2 row(s) allowed.');
+    }
+
+    public function test_server_side_rejects_more_rows_than_max_rows(): void
+    {
+        $form = Form::create([
+            'name' => 'Max Rows Form',
+            'slug' => 'max-rows-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Items',
+            'name' => 'items',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'max_rows' => 2,
+                'columns' => [
+                    ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => false, 'options' => []],
+                ],
+            ],
+        ]);
+
+        $response = $this->from(route('forms.show', $form))
+            ->post(route('forms.submit', $form), [
+                'table_fields' => [
+                    $field->id => [
+                        ['__row' => 1, 'name' => 'Row 1'],
+                        ['__row' => 2, 'name' => 'Row 2'],
+                        ['__row' => 3, 'name' => 'Row 3'],
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('forms.show', $form));
+        $response->assertSessionHasErrors("table_fields.{$field->id}");
+        $this->assertDatabaseCount('form_submissions', 0);
+    }
+
+    public function test_server_side_accepts_rows_within_max_rows(): void
+    {
+        $form = Form::create([
+            'name' => 'Max Rows Form',
+            'slug' => 'max-rows-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Items',
+            'name' => 'items',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'max_rows' => 3,
+                'columns' => [
+                    ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => false, 'options' => []],
+                ],
+            ],
+        ]);
+
+        $response = $this->from(route('forms.show', $form))
+            ->post(route('forms.submit', $form), [
+                'table_fields' => [
+                    $field->id => [
+                        ['__row' => 1, 'name' => 'Row 1'],
+                        ['__row' => 2, 'name' => 'Row 2'],
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+        $this->assertDatabaseCount('form_submissions', 1);
+    }
+
+    public function test_server_side_no_limit_when_max_rows_is_zero(): void
+    {
+        $form = Form::create([
+            'name' => 'Unlimited Form',
+            'slug' => 'unlimited-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Items',
+            'name' => 'items',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'max_rows' => 0,
+                'columns' => [
+                    ['key' => 'name', 'label' => 'Name', 'type' => 'text', 'required' => false, 'options' => []],
+                ],
+            ],
+        ]);
+
+        $response = $this->from(route('forms.show', $form))
+            ->post(route('forms.submit', $form), [
+                'table_fields' => [
+                    $field->id => [
+                        ['__row' => 1, 'name' => 'Row 1'],
+                        ['__row' => 2, 'name' => 'Row 2'],
+                        ['__row' => 3, 'name' => 'Row 3'],
+                        ['__row' => 4, 'name' => 'Row 4'],
+                        ['__row' => 5, 'name' => 'Row 5'],
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+        $this->assertDatabaseCount('form_submissions', 1);
+    }
 }

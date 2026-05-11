@@ -29,6 +29,7 @@ class FormFieldController extends Controller
             'allow_custom_answer' => 'boolean',
             'other_label' => 'nullable|string|max:255',
             'config.auto_number' => 'sometimes|boolean',
+            'config.max_rows' => 'nullable|integer|min:0',
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
             'config.columns.*.key' => 'nullable|string|max:255',
@@ -82,6 +83,7 @@ class FormFieldController extends Controller
             'allow_custom_answer' => 'boolean',
             'other_label' => 'nullable|string|max:255',
             'config.auto_number' => 'sometimes|boolean',
+            'config.max_rows' => 'nullable|integer|min:0',
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
             'config.columns.*.key' => 'nullable|string|max:255',
@@ -230,6 +232,7 @@ class FormFieldController extends Controller
 
         return [
             'auto_number' => $request->boolean('config.auto_number', false),
+            'max_rows' => max(0, (int) $request->input('config.max_rows', 0)),
             'columns' => $columns,
         ];
     }
