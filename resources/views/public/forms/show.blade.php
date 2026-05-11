@@ -260,6 +260,7 @@
 <script>
 (function () {
     var defaultOtherLabel = @js(FormField::DEFAULT_OTHER_LABEL);
+    var otherOptionValue = @js(FormField::OTHER_OPTION_VALUE);
 
     function updateTableState(tableWrapper) {
         var rows = Array.from(tableWrapper.querySelectorAll('[data-table-row]'));
@@ -279,11 +280,10 @@
     function clearCellValidation(cell) {
         cell.classList.remove('table-cell-invalid');
 
-        var feedback = cell.querySelector('[data-table-error]');
-        if (feedback) {
+        cell.querySelectorAll('[data-table-error]').forEach(function (feedback) {
             feedback.textContent = '';
             feedback.classList.add('d-none');
-        }
+        });
 
         cell.querySelectorAll('.is-invalid').forEach(function (element) {
             element.classList.remove('is-invalid');
@@ -352,6 +352,33 @@
         summaryElement.textContent = selectedLabels.length <= 2
             ? selectedLabels.join(', ')
             : selectedLabels.length + ' selected';
+    }
+
+    /**
+     * Show or hide the "other" free-text input inside a radio or dropdown cell
+     * depending on whether the "other" option is currently selected.
+     */
+    function updateTableCellOtherInputState(cell) {
+        var type = cell.dataset.columnType;
+        var otherInput = cell.querySelector('[data-other-input-field]');
+        if (!otherInput) {
+            return;
+        }
+
+        var isOther = false;
+        if (type === 'radio') {
+            var otherToggle = cell.querySelector('[data-other-toggle]');
+            isOther = !!(otherToggle && otherToggle.checked);
+        } else if (type === 'dropdown') {
+            var select = cell.querySelector('select');
+            isOther = !!(select && select.value === otherOptionValue);
+        }
+
+        otherInput.disabled = !isOther;
+        if (!isOther) {
+            otherInput.value = '';
+            otherInput.classList.remove('is-invalid');
+        }
     }
 
     function cellHasValue(cell, type) {
@@ -443,35 +470,38 @@
         return input ? (input.value || '') : '';
     }
 
-    function syncRowVisibility(row, changedColumnKey) {
-        row.querySelectorAll('td[data-column-type]').forEach(function (cell) {
-            if (cell.dataset.visibilityEnabled !== 'true') {
-                return;
-            }
+    function syncInlineDependentCell(cell, visible) {
+        var controls = cell.querySelectorAll('input, select, textarea, button');
 
+        cell.style.display = visible ? '' : 'none';
+        cell.dataset.visibilityState = visible ? 'visible' : 'hidden';
+
+        controls.forEach(function (control) {
+            control.disabled = !visible;
+        });
+
+        if (!visible) {
+            clearCellValues(cell);
+            clearCellValidation(cell);
+            updateTableCheckboxDropdownSummary(cell);
+            return;
+        }
+
+        // Restore "other" input state for radio/dropdown inside the revealed cell.
+        updateTableCellOtherInputState(cell);
+        updateTableCheckboxDropdownSummary(cell);
+    }
+
+    function syncRowVisibility(row, changedColumnKey) {
+        // Handle inline dependent cells (rendered inside their controlling <td>).
+        row.querySelectorAll('[data-inline-dependent-cell]').forEach(function (cell) {
             if (changedColumnKey && cell.dataset.visibilityField !== changedColumnKey) {
                 return;
             }
 
             var actualValue = getRowCellValue(row, cell.dataset.visibilityField || '');
             var visible = evaluateVisibilityCondition(actualValue, cell.dataset.visibilityOperator || 'equals', cell.dataset.visibilityValue || '');
-            var controls = cell.querySelectorAll('input, select, textarea, button');
-
-            cell.style.display = visible ? '' : 'none';
-            cell.dataset.visibilityState = visible ? 'visible' : 'hidden';
-
-            controls.forEach(function (control) {
-                control.disabled = !visible;
-            });
-
-            if (!visible) {
-                clearCellValues(cell);
-                clearCellValidation(cell);
-                updateTableCheckboxDropdownSummary(cell);
-                return;
-            }
-
-            updateTableCheckboxDropdownSummary(cell);
+            syncInlineDependentCell(cell, visible);
         });
     }
 
@@ -480,6 +510,45 @@
         if (row) {
             syncRowVisibility(row);
         }
+    }
+
+    function validateCell(cell, tableValid, valid) {
+        if (cell.dataset.visibilityState === 'hidden') {
+            clearCellValidation(cell);
+            return { tableValid: tableValid, valid: valid };
+        }
+
+        clearCellValidation(cell);
+
+        var otherState = cell.dataset.columnType === 'checkbox' ? getCheckboxOtherState(cell) : null;
+        if (otherState?.toggle?.checked && otherState.input?.value.trim() === '') {
+            markCellInvalid(cell, 'Please enter a value for ' + otherState.label + '.');
+            return { tableValid: false, valid: false };
+        }
+
+        // Validate "other" text input for radio and dropdown
+        if (cell.dataset.columnType === 'radio' || cell.dataset.columnType === 'dropdown') {
+            var otherToggleOrSelect = cell.dataset.columnType === 'radio'
+                ? cell.querySelector('[data-other-toggle]')
+                : null;
+            var selectEl = cell.dataset.columnType === 'dropdown' ? cell.querySelector('select') : null;
+            var otherInputEl = cell.querySelector('[data-other-input-field]');
+            var needsOther = otherToggleOrSelect
+                ? otherToggleOrSelect.checked
+                : (selectEl ? selectEl.value === otherOptionValue : false);
+            if (needsOther && otherInputEl && otherInputEl.value.trim() === '') {
+                var otherLabel = otherInputEl.dataset.otherLabel || defaultOtherLabel;
+                markCellInvalid(cell, 'Please enter a value for ' + otherLabel + '.');
+                return { tableValid: false, valid: false };
+            }
+        }
+
+        if (cell.dataset.required === '1' && !cellHasValue(cell, cell.dataset.columnType)) {
+            markCellInvalid(cell, 'This field is required.');
+            return { tableValid: false, valid: false };
+        }
+
+        return { tableValid: tableValid, valid: valid };
     }
 
     function validateRepeatableTables(form) {
@@ -491,26 +560,16 @@
 
             tableWrapper.querySelectorAll('[data-table-row]').forEach(function (row) {
                 row.querySelectorAll('td[data-column-type]').forEach(function (cell) {
-                    if (cell.dataset.visibilityState === 'hidden') {
-                        clearCellValidation(cell);
-                        return;
-                    }
+                    var result = validateCell(cell, tableValid, valid);
+                    tableValid = result.tableValid;
+                    valid = result.valid;
 
-                    clearCellValidation(cell);
-
-                    var otherState = cell.dataset.columnType === 'checkbox' ? getCheckboxOtherState(cell) : null;
-                    if (otherState?.toggle?.checked && otherState.input?.value.trim() === '') {
-                        tableValid = false;
-                        valid = false;
-                        markCellInvalid(cell, 'Please enter a value for ' + otherState.label + '.');
-                        return;
-                    }
-
-                    if (cell.dataset.required === '1' && !cellHasValue(cell, cell.dataset.columnType)) {
-                        tableValid = false;
-                        valid = false;
-                        markCellInvalid(cell, 'This field is required.');
-                    }
+                    // Also validate any inline dependent cells inside this <td>.
+                    cell.querySelectorAll('[data-inline-dependent-cell]').forEach(function (depCell) {
+                        var depResult = validateCell(depCell, tableValid, valid);
+                        tableValid = depResult.tableValid;
+                        valid = depResult.valid;
+                    });
                 });
             });
 
@@ -528,7 +587,7 @@
 
         updateTableState(tableWrapper);
         tableWrapper.querySelectorAll('[data-table-row]').forEach(function (row) {
-            row.querySelectorAll('td[data-column-type="checkbox_dropdown"]').forEach(function (cell) {
+            row.querySelectorAll('[data-column-type="checkbox_dropdown"]').forEach(function (cell) {
                 initializeTableCheckboxDropdownSummary(cell);
                 updateTableCheckboxDropdownSummary(cell);
             });
@@ -543,7 +602,7 @@
                 tbody.insertAdjacentHTML('beforeend', html);
                 var newRow = tbody.querySelector('[data-table-row]:last-child');
                 if (newRow) {
-                    newRow.querySelectorAll('td[data-column-type="checkbox_dropdown"]').forEach(function (cell) {
+                    newRow.querySelectorAll('[data-column-type="checkbox_dropdown"]').forEach(function (cell) {
                         initializeTableCheckboxDropdownSummary(cell);
                         updateTableCheckboxDropdownSummary(cell);
                     });
@@ -564,12 +623,26 @@
         });
 
         tableWrapper.addEventListener('change', function (event) {
+            var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
+
+            // If change happened inside an inline dependent cell, handle it directly.
+            var inlineCell = event.target.closest('[data-inline-dependent-cell]');
+            if (inlineCell) {
+                clearCellValidation(inlineCell);
+                updateTableCheckboxDropdownSummary(inlineCell);
+                updateTableCellOtherInputState(inlineCell);
+                if (summaryError) {
+                    summaryError.classList.add('d-none');
+                }
+                return;
+            }
+
             var cell = event.target.closest('td[data-column-type]');
             if (cell) {
                 syncRowVisibilityForCell(cell);
                 clearCellValidation(cell);
                 updateTableCheckboxDropdownSummary(cell);
-                var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
+                updateTableCellOtherInputState(cell);
                 if (summaryError) {
                     summaryError.classList.add('d-none');
                 }
@@ -577,6 +650,18 @@
         });
 
         tableWrapper.addEventListener('input', function (event) {
+            var summaryError = tableWrapper.querySelector('[data-table-summary-error]');
+
+            var inlineCell = event.target.closest('[data-inline-dependent-cell]');
+            if (inlineCell) {
+                clearCellValidation(inlineCell);
+                updateTableCheckboxDropdownSummary(inlineCell);
+                if (summaryError) {
+                    summaryError.classList.add('d-none');
+                }
+                return;
+            }
+
             var cell = event.target.closest('td[data-column-type="checkbox"], td[data-column-type="checkbox_dropdown"]');
             if (cell) {
                 syncRowVisibilityForCell(cell);

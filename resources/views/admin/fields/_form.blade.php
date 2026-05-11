@@ -127,7 +127,7 @@
                             <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
                             <textarea name="config[columns][{{ $index }}][options]" rows="3" class="form-control">{{ is_array($column['options'] ?? []) ? implode("\n", $column['options'] ?? []) : ($column['options'] ?? '') }}</textarea>
                         </div>
-                        <div class="col-12 column-custom-answer-group" style="{{ ($column['type'] ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
+                        <div class="col-12 column-custom-answer-group" style="{{ in_array($column['type'] ?? 'text', ['checkbox', 'radio', 'dropdown'], true) ? '' : 'display:none' }}">
                             @php
                                 $columnCustomAnswerEnabled = !empty($column['allow_custom_answer']);
                                 $columnOtherLabel = \App\Models\FormField::normalizeOtherLabel($column['other_label'] ?? null);
@@ -381,13 +381,13 @@
         }
 
         var showOptions = ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown'].includes(typeSelect.value);
-        var isCheckbox = typeSelect.value === 'checkbox';
+        var showCustomAnswer = ['dropdown', 'radio', 'checkbox'].includes(typeSelect.value);
         optionsGroup.style.display = showOptions ? '' : 'none';
         if (customAnswerGroup) {
-            customAnswerGroup.style.display = isCheckbox ? '' : 'none';
+            customAnswerGroup.style.display = showCustomAnswer ? '' : 'none';
         }
         if (otherLabelGroup) {
-            otherLabelGroup.style.display = isCheckbox && customAnswerToggle && customAnswerToggle.checked ? '' : 'none';
+            otherLabelGroup.style.display = showCustomAnswer && customAnswerToggle && customAnswerToggle.checked ? '' : 'none';
         }
     }
 

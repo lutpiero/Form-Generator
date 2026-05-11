@@ -234,6 +234,18 @@ class FormController extends Controller
                         );
                     }
                     $hasValue = $hasValue || $value !== [];
+                } elseif (in_array($column['type'], ['radio', 'dropdown'], true) && !empty($column['allow_custom_answer'])) {
+                    if (is_array($value)) {
+                        continue;
+                    }
+                    if (is_string($value)) {
+                        $value = trim($value);
+                    }
+                    if ($value === FormField::OTHER_OPTION_VALUE) {
+                        $otherValue = trim((string) ($row[$this->tableOtherInputKey($key)] ?? ''));
+                        $value = FormField::formatOtherResponse($otherValue);
+                    }
+                    $hasValue = $hasValue || !in_array($value, [null, ''], true);
                 } else {
                     if (is_array($value)) {
                         // Skip malformed array payloads for non-checkbox columns.
@@ -327,6 +339,20 @@ class FormController extends Controller
                         }
                     }
                 }
+
+                if (in_array($column['type'], ['radio', 'dropdown'], true) && !empty($column['allow_custom_answer'])) {
+                    if ((string) $value === FormField::OTHER_OPTION_VALUE || FormField::isOtherResponse((string) $value)) {
+                        $otherInputKey = $this->tableOtherInputKey($columnKey);
+                        $otherValue = trim((string) ($row[$otherInputKey] ?? ''));
+
+                        if ($otherValue === '') {
+                            $validation->errors()->add(
+                                "table_fields.{$field->id}.{$rowIndex}.{$otherInputKey}",
+                                'Please enter a value for ' . ($column['other_label'] ?? FormField::DEFAULT_OTHER_LABEL) . '.'
+                            );
+                        }
+                    }
+                }
             }
         }
     }
@@ -366,6 +392,9 @@ class FormController extends Controller
             case 'radio':
                 if (is_array($value)) {
                     return false;
+                }
+                if (!empty($column['allow_custom_answer']) && in_array((string) $value, [FormField::OTHER_OPTION_VALUE], true)) {
+                    return true;
                 }
                 return empty($column['options']) || in_array((string) $value, $column['options'], true);
             case 'checkbox':

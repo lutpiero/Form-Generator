@@ -1,6 +1,8 @@
 @php
     $rowValues = is_array($rowValues ?? null) ? $rowValues : [];
     $baseName = "table_fields[{$field->id}][{$rowIndex}]";
+    $dependentColumnKeys = $dependentColumnKeys ?? [];
+    $dependentsByController = $dependentsByController ?? [];
 @endphp
 
 <tr data-table-row>
@@ -11,199 +13,74 @@
     @foreach($columns as $column)
         @php
             $columnKey = $column['key'];
+
+            // Dependent columns are rendered inline inside their controlling column's <td>.
+            if (in_array($columnKey, $dependentColumnKeys, true)) {
+                continue;
+            }
+
             $errorKey = "table_fields.{$field->id}.{$rowIndex}.{$columnKey}";
             $otherInputKey = "{$columnKey}_other";
             $errorMessage = $errors->first($errorKey) ?: $errors->first($errorKey.'.0') ?: $errors->first("table_fields.{$field->id}.{$rowIndex}.{$otherInputKey}");
             $isInvalid = $errorMessage !== '';
             $columnValue = $rowValues[$columnKey] ?? null;
-            $columnVisible = \App\Models\FormField::isTableColumnVisible($column, $rowValues);
-            $columnVisibility = \App\Models\FormField::normalizeColumnVisibilityRule($column['visibility'] ?? null);
-            $columnDisabledAttr = $columnVisible ? '' : 'disabled';
+            $columnVisible = true; // Non-dependent columns are always visible
+            $columnDisabledAttr = '';
         @endphp
         <td class="align-top"
             data-column-type="{{ $column['type'] }}"
             data-column-key="{{ $columnKey }}"
             data-required="{{ ($column['required'] ?? false) ? '1' : '0' }}"
-            data-visibility-enabled="{{ $columnVisibility ? 'true' : 'false' }}"
-            data-visibility-field="{{ $columnVisibility['field'] ?? '' }}"
-            data-visibility-operator="{{ $columnVisibility['operator'] ?? '' }}"
-            data-visibility-value="{{ $columnVisibility['value'] ?? '' }}"
-            data-visibility-state="{{ $columnVisible ? 'visible' : 'hidden' }}"
-            style="{{ $columnVisible ? '' : 'display:none;' }}">
-            @switch($column['type'])
-                @case('textarea')
-                    <textarea
-                        name="{{ $baseName }}[{{ $columnKey }}]"
-                        class="form-control form-control-sm {{ $isInvalid ? 'is-invalid' : '' }}"
-                        rows="2"
-                        {{ $columnDisabledAttr }}
-                    >{{ is_string($columnValue) ? $columnValue : '' }}</textarea>
-                    @break
-
-                @case('dropdown')
-                    <select
-                        name="{{ $baseName }}[{{ $columnKey }}]"
-                        class="form-select form-select-sm {{ $isInvalid ? 'is-invalid' : '' }}"
-                        {{ $columnDisabledAttr }}
-                    >
-                        <option value="">Select</option>
-                        @foreach($column['options'] ?? [] as $option)
-                            <option value="{{ $option }}" {{ $columnValue === $option ? 'selected' : '' }}>{{ $option }}</option>
-                        @endforeach
-                    </select>
-                    @break
-
-                @case('radio')
-                    <div class="d-flex flex-column gap-1">
-                        @foreach($column['options'] ?? [] as $optionIndex => $option)
-                            @php $radioInputId = "{$field->id}_{$rowIndex}_{$columnKey}_{$optionIndex}"; @endphp
-                            <div class="form-check">
-                                <input
-                                    class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
-                                    type="radio"
-                                    name="{{ $baseName }}[{{ $columnKey }}]"
-                                    value="{{ $option }}"
-                                    id="{{ $radioInputId }}"
-                                    {{ $columnValue === $option ? 'checked' : '' }}
-                                    {{ $columnDisabledAttr }}
-                                >
-                                <label class="form-check-label small" for="{{ $radioInputId }}">{{ $option }}</label>
-                            </div>
-                        @endforeach
-                    </div>
-                    @break
-
-                @case('checkbox')
-                    @php
-                        $checkboxValues = collect((array) $columnValue);
-                        $otherValue = $rowValues[$otherInputKey] ?? null;
-
-                        if (!is_string($otherValue) || trim($otherValue) === '') {
-                            $storedOtherValue = $checkboxValues->first(fn ($value) => \App\Models\FormField::isOtherResponse($value));
-                            $otherValue = \App\Models\FormField::extractOtherResponse($storedOtherValue);
-                        }
-
-                        $otherChecked = $checkboxValues->contains(\App\Models\FormField::OTHER_OPTION_VALUE)
-                            || $checkboxValues->contains(fn ($value) => \App\Models\FormField::isOtherResponse($value));
-                        $otherFieldDisabledAttr = (!$columnVisible || !$otherChecked) ? 'disabled' : '';
-                    @endphp
-                    <div class="d-flex flex-column gap-1">
-                        @foreach($column['options'] ?? [] as $optionIndex => $option)
-                            @php $checkboxInputId = "{$field->id}_{$rowIndex}_{$columnKey}_{$optionIndex}"; @endphp
-                            <div class="form-check">
-                                <input
-                                    class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
-                                    type="checkbox"
-                                    name="{{ $baseName }}[{{ $columnKey }}][]"
-                                    value="{{ $option }}"
-                                    id="{{ $checkboxInputId }}"
-                                    {{ $checkboxValues->contains($option) ? 'checked' : '' }}
-                                    {{ $columnDisabledAttr }}
-                                >
-                                <label class="form-check-label small" for="{{ $checkboxInputId }}">{{ $option }}</label>
-                            </div>
-                        @endforeach
-                        @if(!empty($column['allow_custom_answer']))
-                            @php $otherInputId = "{$field->id}_{$rowIndex}_{$columnKey}_other"; @endphp
-                            <div class="form-check" data-other-option>
-                                <input
-                                    class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
-                                    type="checkbox"
-                                    name="{{ $baseName }}[{{ $columnKey }}][]"
-                                    value="{{ \App\Models\FormField::OTHER_OPTION_VALUE }}"
-                                    id="{{ $otherInputId }}_toggle"
-                                    data-other-toggle
-                                    data-other-input-id="{{ $otherInputId }}"
-                                    {{ $otherChecked ? 'checked' : '' }}
-                                    {{ $columnDisabledAttr }}
-                                >
-                                <label class="form-check-label small" for="{{ $otherInputId }}_toggle">{{ $column['other_label'] }}</label>
-                                <input
-                                    type="text"
-                                    name="{{ $baseName }}[{{ $otherInputKey }}]"
-                                    id="{{ $otherInputId }}"
-                                    value="{{ is_string($otherValue) ? $otherValue : '' }}"
-                                    class="form-control form-control-sm mt-2 {{ $isInvalid ? 'is-invalid' : '' }}"
-                                    placeholder="Please specify"
-                                    data-other-label="{{ $column['other_label'] }}"
-                                    data-other-input-field
-                                    {{ $otherFieldDisabledAttr }}
-                                >
-                            </div>
-                        @endif
-                    </div>
-                    @break
-
-                @case('checkbox_dropdown')
-                    @php
-                        $checkboxValues = collect((array) $columnValue);
-                        $selectedLabels = collect($column['options'] ?? [])
-                            ->filter(fn ($option) => $checkboxValues->contains($option))
-                            ->values();
-                        $selectedCount = $selectedLabels->count();
-                        $defaultSummary = 'Select options...';
-                        $selectionSummary = $selectedCount === 0
-                            ? $defaultSummary
-                            : ($selectedCount <= 2
-                                ? $selectedLabels->implode(', ')
-                                : "{$selectedCount} selected");
-                    @endphp
-                    <div class="dropdown checkbox-dropdown checkbox-dropdown-sm" data-table-checkbox-dropdown>
-                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle w-100 text-start d-flex justify-content-between align-items-center {{ $isInvalid ? 'is-invalid' : '' }}"
-                                type="button"
-                                id="{{ $field->id }}_{{ $rowIndex }}_{{ $columnKey }}_dropdown"
-                                data-bs-toggle="dropdown"
-                                data-bs-auto-close="outside"
-                                aria-expanded="false"
-                                {{ $columnDisabledAttr }}>
-                            <span class="text-truncate pe-2" data-table-checkbox-dropdown-summary data-placeholder="{{ $defaultSummary }}">{{ $selectionSummary }}</span>
-                        </button>
-                        <ul class="dropdown-menu w-100 p-2 checkbox-dropdown-menu" aria-labelledby="{{ $field->id }}_{{ $rowIndex }}_{{ $columnKey }}_dropdown">
-                            @foreach($column['options'] ?? [] as $optionIndex => $option)
-                                @php $checkboxInputId = "{$field->id}_{$rowIndex}_{$columnKey}_dropdown_{$optionIndex}"; @endphp
-                                <li>
-                                    <div class="form-check mb-0">
-                                        <input
-                                            class="form-check-input {{ $isInvalid ? 'is-invalid' : '' }}"
-                                            type="checkbox"
-                                            name="{{ $baseName }}[{{ $columnKey }}][]"
-                                            value="{{ $option }}"
-                                            id="{{ $checkboxInputId }}"
-                                            data-table-checkbox-dropdown-option
-                                            {{ $checkboxValues->contains($option) ? 'checked' : '' }}
-                                            {{ $columnDisabledAttr }}
-                                        >
-                                        <label class="form-check-label small" for="{{ $checkboxInputId }}">{{ $option }}</label>
-                                    </div>
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                    @break
-
-                @case('phone')
-                    <input
-                        type="tel"
-                        name="{{ $baseName }}[{{ $columnKey }}]"
-                        value="{{ is_string($columnValue) ? $columnValue : '' }}"
-                        class="form-control form-control-sm {{ $isInvalid ? 'is-invalid' : '' }}"
-                        {{ $columnDisabledAttr }}
-                    >
-                    @break
-
-                @default
-                    <input
-                        type="{{ $column['type'] }}"
-                        name="{{ $baseName }}[{{ $columnKey }}]"
-                        value="{{ is_scalar($columnValue) ? $columnValue : '' }}"
-                        class="form-control form-control-sm {{ $isInvalid ? 'is-invalid' : '' }}"
-                        {{ $columnDisabledAttr }}
-                    >
-            @endswitch
+            data-visibility-enabled="false">
+            @include('public.forms.partials._table-column-input')
 
             <div class="invalid-feedback {{ $errorMessage ? 'd-block' : 'd-none' }}" data-table-error {{ $errorMessage ? 'data-server-error=1' : '' }}>
                 {{ $errorMessage }}
             </div>
+
+            {{-- Render dependent columns inline inside this controlling cell --}}
+            @foreach($dependentsByController[$columnKey] ?? [] as $depColumn)
+                @php
+                    $depColumnKey = $depColumn['key'];
+                    $depErrorKey = "table_fields.{$field->id}.{$rowIndex}.{$depColumnKey}";
+                    $depOtherInputKey = "{$depColumnKey}_other";
+                    $depErrorMessage = $errors->first($depErrorKey) ?: $errors->first($depErrorKey.'.0') ?: $errors->first("table_fields.{$field->id}.{$rowIndex}.{$depOtherInputKey}");
+                    $depIsInvalid = $depErrorMessage !== '';
+                    $depColumnValue = $rowValues[$depColumnKey] ?? null;
+                    $depColumnVisible = \App\Models\FormField::isTableColumnVisible($depColumn, $rowValues);
+                    $depColumnVisibility = \App\Models\FormField::normalizeColumnVisibilityRule($depColumn['visibility'] ?? null);
+                    $depColumnDisabledAttr = $depColumnVisible ? '' : 'disabled';
+                @endphp
+                <div class="mt-2"
+                     data-inline-dependent-cell
+                     data-column-type="{{ $depColumn['type'] }}"
+                     data-column-key="{{ $depColumnKey }}"
+                     data-required="{{ ($depColumn['required'] ?? false) ? '1' : '0' }}"
+                     data-visibility-enabled="true"
+                     data-visibility-field="{{ $depColumnVisibility['field'] ?? '' }}"
+                     data-visibility-operator="{{ $depColumnVisibility['operator'] ?? '' }}"
+                     data-visibility-value="{{ $depColumnVisibility['value'] ?? '' }}"
+                     data-visibility-state="{{ $depColumnVisible ? 'visible' : 'hidden' }}"
+                     style="{{ $depColumnVisible ? '' : 'display:none;' }}">
+                    <label class="form-label small fw-semibold mb-1">
+                        {{ $depColumn['label'] }}
+                        @if($depColumn['required'] ?? false) <span class="text-danger">*</span> @endif
+                    </label>
+                    @php
+                        // Re-bind loop variables using dep-column names for the shared partial.
+                        $column = $depColumn;
+                        $columnKey = $depColumnKey;
+                        $columnValue = $depColumnValue;
+                        $isInvalid = $depIsInvalid;
+                        $columnDisabledAttr = $depColumnDisabledAttr;
+                        $columnVisible = $depColumnVisible;
+                    @endphp
+                    @include('public.forms.partials._table-column-input')
+                    <div class="invalid-feedback {{ $depErrorMessage ? 'd-block' : 'd-none' }}" data-table-error {{ $depErrorMessage ? 'data-server-error=1' : '' }}>
+                        {{ $depErrorMessage }}
+                    </div>
+                </div>
+            @endforeach
         </td>
     @endforeach
 
@@ -214,3 +91,4 @@
         </button>
     </td>
 </tr>
+
