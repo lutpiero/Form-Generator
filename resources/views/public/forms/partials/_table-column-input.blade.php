@@ -39,7 +39,7 @@
                 }
                 $dropdownOtherSelected = $columnValue === \App\Models\FormField::OTHER_OPTION_VALUE
                     || \App\Models\FormField::isOtherResponse($columnValue);
-                $dropdownOtherDisabled = (!$dropdownOtherSelected) ? 'disabled' : $columnDisabledAttr;
+                $dropdownOtherFieldDisabledAttr = (!$dropdownOtherSelected) ? 'disabled' : $columnDisabledAttr;
             @endphp
             <input
                 type="text"
@@ -50,7 +50,7 @@
                 placeholder="Please specify"
                 data-other-label="{{ $column['other_label'] }}"
                 data-other-input-field
-                {{ $dropdownOtherDisabled }}
+                {{ $dropdownOtherFieldDisabledAttr }}
             >
         @endif
         @break
@@ -83,7 +83,7 @@
                     }
                     $radioOtherChecked = $columnValue === \App\Models\FormField::OTHER_OPTION_VALUE
                         || \App\Models\FormField::isOtherResponse($columnValue);
-                    $radioOtherFieldDisabled = (!$radioOtherChecked) ? 'disabled' : $columnDisabledAttr;
+                    $radioOtherFieldDisabledAttr = (!$radioOtherChecked) ? 'disabled' : $columnDisabledAttr;
                 @endphp
                 <div class="form-check" data-other-option>
                     <input
@@ -107,7 +107,7 @@
                         placeholder="Please specify"
                         data-other-label="{{ $column['other_label'] }}"
                         data-other-input-field
-                        {{ $radioOtherFieldDisabled }}
+                        {{ $radioOtherFieldDisabledAttr }}
                     >
                 </div>
             @endif
