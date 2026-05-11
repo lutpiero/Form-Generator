@@ -25,7 +25,7 @@
                     </thead>
                     <tbody>
                         @foreach($form->fields as $field)
-                        @if($field->type !== 'section')
+                        @if(!in_array($field->type, ['section', 'label'], true))
                         <tr>
                             <td class="fw-semibold">{{ $field->label }}</td>
                             <td>

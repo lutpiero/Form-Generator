@@ -62,7 +62,7 @@ class FormController extends Controller
         }
 
         foreach ($form->fields as $field) {
-            if ($field->type === 'section') {
+            if (in_array($field->type, ['section', 'label'], true)) {
                 continue;
             }
 
@@ -148,7 +148,7 @@ class FormController extends Controller
 
         $data = [];
         foreach ($form->fields as $field) {
-            if ($field->type === 'section') {
+            if (in_array($field->type, ['section', 'label'], true)) {
                 continue;
             }
 
@@ -217,6 +217,10 @@ class FormController extends Controller
             $hasValue = false;
 
             foreach ($field->table_columns as $column) {
+                if (($column['type'] ?? null) === 'label') {
+                    continue;
+                }
+
                 if (!FormField::isTableColumnVisible($column, $row)) {
                     continue;
                 }
@@ -284,7 +288,7 @@ class FormController extends Controller
 
         $controllerField = $fieldsById->get($visibilityRule['field_id']);
 
-        if (!$controllerField || in_array($controllerField->type, ['section', 'table'], true)) {
+        if (!$controllerField || in_array($controllerField->type, ['section', 'table', 'label'], true)) {
             return true;
         }
 
@@ -308,6 +312,10 @@ class FormController extends Controller
             }
 
             foreach ($field->table_columns as $column) {
+                if (($column['type'] ?? null) === 'label') {
+                    continue;
+                }
+
                 if (!FormField::isTableColumnVisible($column, $row)) {
                     continue;
                 }

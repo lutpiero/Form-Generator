@@ -37,7 +37,7 @@ class SubmissionController extends Controller
     public function export(Form $form)
     {
         $submissions = $form->submissions()->latest()->get();
-        $fields = $form->fields->filter(fn ($f) => $f->type !== 'section');
+        $fields = $form->fields->filter(fn ($f) => !in_array($f->type, ['section', 'label'], true));
 
         $headers = [
             'Content-Type' => 'text/csv',
@@ -78,7 +78,7 @@ class SubmissionController extends Controller
     public function exportExcel(Form $form)
     {
         $submissions = $form->submissions()->latest()->get();
-        $fields = $form->fields->filter(fn ($f) => $f->type !== 'section')->values();
+        $fields = $form->fields->filter(fn ($f) => !in_array($f->type, ['section', 'label'], true))->values();
         $tableFields = $fields->filter(fn ($field) => $field->type === 'table')->values();
         $flatFields = $fields->filter(fn ($field) => $field->type !== 'table')->values();
 
@@ -195,6 +195,10 @@ class SubmissionController extends Controller
             $headerColumns[] = '#';
         }
         foreach ($field->table_columns as $column) {
+            if (($column['type'] ?? null) === 'label') {
+                continue;
+            }
+
             $headerColumns[] = $column['label'] ?? '';
         }
 
@@ -214,6 +218,10 @@ class SubmissionController extends Controller
             }
 
             foreach ($field->table_columns as $column) {
+                if (($column['type'] ?? null) === 'label') {
+                    continue;
+                }
+
                 $columnValue = is_array($rowData) ? ($rowData[$column['key']] ?? null) : null;
 
                 if (is_array($columnValue)) {

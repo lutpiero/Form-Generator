@@ -175,6 +175,10 @@
         </div>
         @break
 
+    @case('label')
+        <div class="form-control-plaintext py-0 small">{{ $column['label'] }}</div>
+        @break
+
     @case('checkbox_dropdown')
         @php
             $checkboxValues = collect((array) $columnValue);

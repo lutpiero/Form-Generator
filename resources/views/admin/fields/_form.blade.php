@@ -35,6 +35,7 @@
             'checkbox_dropdown' => 'Checkbox Dropdown',
             'table' => 'Table / Repeatable Group',
             'section' => 'Section Divider',
+            'label' => 'Label',
         ] as $value => $typeLabel)
             <option value="{{ $value }}" {{ $selectedType == $value ? 'selected' : '' }}>{{ $typeLabel }}</option>
         @endforeach
@@ -119,13 +120,13 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Column Type <span class="text-danger">*</span></label>
                             <select name="config[columns][{{ $index }}][type]" class="form-select @error("config.columns.$index.type") is-invalid @enderror" data-column-type>
-                                @foreach(['text' => 'Text', 'email' => 'Email', 'phone' => 'Phone Number', 'number' => 'Number', 'textarea' => 'Text Area', 'dropdown' => 'Dropdown', 'radio' => 'Radio Buttons', 'checkbox' => 'Checkboxes', 'checkbox_dropdown' => 'Checkbox Dropdown'] as $value => $typeLabel)
+                                @foreach(['text' => 'Text', 'email' => 'Email', 'phone' => 'Phone Number', 'number' => 'Number', 'textarea' => 'Text Area', 'dropdown' => 'Dropdown', 'radio' => 'Radio Buttons', 'checkbox' => 'Checkboxes', 'checkbox_dropdown' => 'Checkbox Dropdown', 'label' => 'Label'] as $value => $typeLabel)
                                     <option value="{{ $value }}" {{ ($column['type'] ?? 'text') === $value ? 'selected' : '' }}>{{ $typeLabel }}</option>
                                 @endforeach
                             </select>
                             @error("config.columns.$index.type")<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-                        <div class="col-12">
+                        <div class="col-12 column-required-group" style="{{ ($column['type'] ?? 'text') === 'label' ? 'display:none' : '' }}">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" name="config[columns][{{ $index }}][required]" value="1"
                                        {{ !empty($column['required']) ? 'checked' : '' }}>
@@ -224,12 +225,12 @@
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Column Type <span class="text-danger">*</span></label>
                         <select data-name-template="config[columns][__INDEX__][type]" class="form-select" data-column-type>
-                            @foreach(['text' => 'Text', 'email' => 'Email', 'phone' => 'Phone Number', 'number' => 'Number', 'textarea' => 'Text Area', 'dropdown' => 'Dropdown', 'radio' => 'Radio Buttons', 'checkbox' => 'Checkboxes', 'checkbox_dropdown' => 'Checkbox Dropdown'] as $value => $typeLabel)
+                            @foreach(['text' => 'Text', 'email' => 'Email', 'phone' => 'Phone Number', 'number' => 'Number', 'textarea' => 'Text Area', 'dropdown' => 'Dropdown', 'radio' => 'Radio Buttons', 'checkbox' => 'Checkboxes', 'checkbox_dropdown' => 'Checkbox Dropdown', 'label' => 'Label'] as $value => $typeLabel)
                                 <option value="{{ $value }}">{{ $typeLabel }}</option>
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12">
+                    <div class="col-12 column-required-group">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" value="1" data-name-template="config[columns][__INDEX__][required]">
                             <label class="form-check-label">Required column</label>
@@ -291,7 +292,7 @@
            value="{{ old('placeholder', $field->placeholder ?? '') }}" placeholder="e.g. Enter your name...">
 </div>
 
-<div id="inputOnlyFields" style="{{ in_array($selectedType, ['section', 'table'], true) ? 'display:none' : '' }}">
+<div id="inputOnlyFields" style="{{ in_array($selectedType, ['section', 'table', 'label'], true) ? 'display:none' : '' }}">
     <div class="mb-3">
         <label class="form-label fw-semibold">Default Value</label>
         <input type="text" name="default_value" class="form-control"
@@ -305,7 +306,7 @@
     </div>
 </div>
 
-<div class="border rounded p-3 bg-light-subtle mb-3" id="visibilityConfigGroup" style="{{ in_array($selectedType, ['section', 'table'], true) ? 'display:none' : '' }}">
+<div class="border rounded p-3 bg-light-subtle mb-3" id="visibilityConfigGroup" style="{{ in_array($selectedType, ['section', 'table', 'label'], true) ? 'display:none' : '' }}">
     <h6 class="mb-3">Conditional Visibility</h6>
     <div class="form-check form-switch mb-3">
         <input class="form-check-input" type="checkbox" name="visibility[enabled]" id="visibility_enabled" value="1"
@@ -381,6 +382,7 @@
 
     function updateColumnOptions(columnItem) {
         var typeSelect = columnItem.querySelector('[data-column-type]');
+        var requiredGroup = columnItem.querySelector('.column-required-group');
         var optionsGroup = columnItem.querySelector('.column-options-group');
         var customAnswerGroup = columnItem.querySelector('.column-custom-answer-group');
         var customAnswerToggle = columnItem.querySelector('[data-column-custom-answer]');
@@ -391,6 +393,9 @@
 
         var showOptions = ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown'].includes(typeSelect.value);
         var showCustomAnswer = ['dropdown', 'radio', 'checkbox'].includes(typeSelect.value);
+        if (requiredGroup) {
+            requiredGroup.style.display = typeSelect.value === 'label' ? 'none' : '';
+        }
         optionsGroup.style.display = showOptions ? '' : 'none';
         if (customAnswerGroup) {
             customAnswerGroup.style.display = showCustomAnswer ? '' : 'none';
@@ -519,19 +524,24 @@
         var isCheckbox = type === 'checkbox';
         var isSection = type === 'section';
         var isTable = type === 'table';
+        var isLabel = type === 'label';
 
         optionsGroup.style.display = showOptions ? '' : 'none';
         customAnswerGroup.style.display = isCheckbox ? '' : 'none';
         if (customAnswerLabelGroup) {
             customAnswerLabelGroup.style.display = isCheckbox && allowCustomAnswer && allowCustomAnswer.checked ? '' : 'none';
         }
-        inputOnlyFields.style.display = (isSection || isTable) ? 'none' : '';
-        visibilityConfigGroup.style.display = (isSection || isTable) ? 'none' : '';
+        inputOnlyFields.style.display = (isSection || isTable || isLabel) ? 'none' : '';
+        visibilityConfigGroup.style.display = (isSection || isTable || isLabel) ? 'none' : '';
 
         if (isSection) {
             labelText.innerHTML = 'Section Title <span class="text-danger">*</span>';
             placeholderLabel.textContent = 'Section Description';
             placeholderInput.placeholder = 'e.g. Please fill in your personal details (optional)';
+        } else if (isLabel) {
+            labelText.innerHTML = 'Label Text <span class="text-danger">*</span>';
+            placeholderLabel.textContent = 'Help Text';
+            placeholderInput.placeholder = 'e.g. Additional instructions (optional)';
         } else if (isTable) {
             labelText.innerHTML = 'Table Label <span class="text-danger">*</span>';
             placeholderLabel.textContent = 'Placeholder';

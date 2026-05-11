@@ -300,6 +300,142 @@ class PublicFormValidationTest extends TestCase
             ->assertSee('Checkbox Dropdown');
     }
 
+    public function test_admin_field_builder_includes_label_type(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.fields.create', $form))
+            ->assertOk()
+            ->assertSee('<option value="label"', false)
+            ->assertSee('config[columns][__INDEX__][type]', false);
+    }
+
+    public function test_public_form_renders_label_field_without_input_and_submission_skips_it(): void
+    {
+        $form = Form::create([
+            'name' => 'Instruction Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $labelField = $form->fields()->create([
+            'label' => 'Please review the instructions before submitting.',
+            'name' => 'instructions',
+            'type' => 'label',
+            'placeholder' => 'Fields marked with * are required.',
+            'required' => false,
+            'order' => 0,
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Full Name',
+            'name' => 'full_name',
+            'type' => 'text',
+            'required' => true,
+            'order' => 1,
+        ]);
+
+        $this->get(route('forms.show', $form))
+            ->assertOk()
+            ->assertSee('data-display-label-field', false)
+            ->assertSee($labelField->label)
+            ->assertSee($labelField->placeholder)
+            ->assertDontSee('name="'.$labelField->name.'"', false)
+            ->assertDontSee('id="'.$labelField->name.'"', false);
+
+        $response = $this->post(route('forms.submit', $form), [
+            'full_name' => 'Taylor Tester',
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+
+        $submission = FormSubmission::first();
+        $this->assertNotNull($submission);
+        $this->assertSame('Taylor Tester', $submission->data['full_name']);
+        $this->assertArrayNotHasKey($labelField->name, $submission->data);
+    }
+
+    public function test_label_field_is_excluded_from_admin_display_and_exports(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Instruction Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Instructions',
+            'name' => 'instructions',
+            'type' => 'label',
+            'placeholder' => 'Please fill every required field.',
+            'required' => false,
+            'order' => 0,
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Full Name',
+            'name' => 'full_name',
+            'type' => 'text',
+            'required' => true,
+            'order' => 1,
+        ]);
+
+        $submission = $form->submissions()->create([
+            'data' => [
+                $field->name => 'Taylor Tester',
+            ],
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'PHPUnit',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.submissions.index', $form))
+            ->assertOk()
+            ->assertDontSee('<th>Instructions</th>', false);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.submissions.show', [$form, $submission]))
+            ->assertOk()
+            ->assertDontSee('<td class="fw-semibold">Instructions</td>', false)
+            ->assertSee('Taylor Tester');
+
+        $csv = $this->actingAs($admin)->get(route('admin.forms.submissions.export', $form));
+        $csv->assertOk();
+        $this->assertStringNotContainsString('Instructions', $csv->streamedContent());
+
+        $excel = $this->actingAs($admin)->get(route('admin.forms.submissions.export-excel', $form));
+        $excel->assertOk();
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'xlsx_test_');
+        copy($excel->baseResponse->getFile()->getPathname(), $tempFile);
+        try {
+            $spreadsheet = IOFactory::load($tempFile);
+        } finally {
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+        }
+
+        $summarySheet = $spreadsheet->getSheetByName('Submissions');
+        $this->assertNotNull($summarySheet);
+        $headerRow = $summarySheet->rangeToArray('A1:'.$summarySheet->getHighestColumn().'1')[0];
+        $this->assertNotContains('Instructions', $headerRow);
+        $this->assertContains('Full Name', $headerRow);
+    }
+
     public function test_public_form_renders_checkbox_dropdown_and_stores_multiple_values(): void
     {
         $field = $this->createCheckboxDropdownField();
