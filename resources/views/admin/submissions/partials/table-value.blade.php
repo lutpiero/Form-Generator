@@ -7,6 +7,7 @@
                         <th class="text-center" style="width: 60px;">#</th>
                     @endif
                     @foreach($field->table_columns as $column)
+                        @continue(($column['type'] ?? null) === 'label')
                         <th>{{ $column['label'] }}</th>
                     @endforeach
                 </tr>
@@ -18,6 +19,7 @@
                             <td class="text-center text-muted">{{ $rowIndex + 1 }}</td>
                         @endif
                         @foreach($field->table_columns as $column)
+                            @continue(($column['type'] ?? null) === 'label')
                             @php $columnValue = $row[$column['key']] ?? null; @endphp
                             <td>
                                 @if(is_array($columnValue))

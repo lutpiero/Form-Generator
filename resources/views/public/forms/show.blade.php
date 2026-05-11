@@ -41,6 +41,13 @@
                 <p class="text-muted small mb-0">{{ $field->placeholder }}</p>
             @endif
         </div>
+        @elseif($field->type === 'label')
+        <div class="mb-4" data-display-label-field>
+            <div class="form-control-plaintext fw-semibold py-0">{{ $field->label }}</div>
+            @if($field->placeholder)
+                <div class="text-muted small">{{ $field->placeholder }}</div>
+            @endif
+        </div>
         @elseif($field->type === 'table')
             @include('public.forms.partials.table-field', ['field' => $field])
         @else

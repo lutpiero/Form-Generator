@@ -1320,4 +1320,65 @@ class TableFieldTest extends TestCase
         $response->assertRedirect(route('forms.success', $form));
         $this->assertDatabaseCount('form_submissions', 1);
     }
+
+    public function test_admin_can_create_label_table_column_and_public_form_renders_static_cell_without_storing_it(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Inventory Form',
+            'slug' => 'inventory-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.forms.fields.store', $form), [
+                'label' => 'Inventory Items',
+                'type' => 'table',
+                'config' => [
+                    'columns' => [
+                        ['label' => 'Read before filling', 'type' => 'label', 'required' => '1'],
+                        ['label' => 'Item Name', 'type' => 'text', 'required' => '1'],
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('admin.forms.show', $form));
+
+        $field = $form->fields()->where('type', 'table')->firstOrFail()->fresh();
+
+        $this->assertSame('label', $field->table_columns[0]['type']);
+        $this->assertFalse($field->table_columns[0]['required']);
+
+        $this->get(route('forms.show', $form))
+            ->assertOk()
+            ->assertSee('<div class="form-control-plaintext py-0 small">Read before filling</div>', false)
+            ->assertDontSee("table_fields[{$field->id}][0][read_before_filling]", false)
+            ->assertSee("table_fields[{$field->id}][0][item_name]", false);
+
+        $response = $this->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'item_name' => 'Fuse Box',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+
+        $submission = FormSubmission::firstOrFail();
+        $this->assertSame([
+            [
+                'item_name' => 'Fuse Box',
+            ],
+        ], $submission->data[$field->name]);
+
+        $csv = $this->actingAs($admin)->get(route('admin.forms.submissions.export', $form));
+        $csv->assertOk();
+        $this->assertStringContainsString('Row 1: Item Name: Fuse Box', $csv->streamedContent());
+        $this->assertStringNotContainsString('Read before filling', $csv->streamedContent());
+    }
 }

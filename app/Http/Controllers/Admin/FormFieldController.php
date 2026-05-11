@@ -21,7 +21,7 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,table,section',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,table,section,label',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
@@ -33,7 +33,7 @@ class FormFieldController extends Controller
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
             'config.columns.*.key' => 'nullable|string|max:255',
-            'config.columns.*.type' => 'nullable|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown',
+            'config.columns.*.type' => 'nullable|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,label',
             'config.columns.*.required' => 'sometimes|boolean',
             'config.columns.*.allow_custom_answer' => 'sometimes|boolean',
             'config.columns.*.other_label' => 'nullable|string|max:255',
@@ -51,7 +51,7 @@ class FormFieldController extends Controller
         $validated['form_id'] = $form->id;
         $validated['name'] = $this->sanitizeName($validated['label']);
         $validated['order'] = $form->fields()->count();
-        $validated['required'] = !in_array($validated['type'], ['section', 'table'], true)
+        $validated['required'] = !in_array($validated['type'], ['section', 'table', 'label'], true)
             && $request->boolean('required', false);
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
         $validated['config'] = $this->prepareConfig($request, $form, $validated['type']);
@@ -74,7 +74,7 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,table,section',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,table,section,label',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
@@ -87,7 +87,7 @@ class FormFieldController extends Controller
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
             'config.columns.*.key' => 'nullable|string|max:255',
-            'config.columns.*.type' => 'nullable|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown',
+            'config.columns.*.type' => 'nullable|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,label',
             'config.columns.*.required' => 'sometimes|boolean',
             'config.columns.*.allow_custom_answer' => 'sometimes|boolean',
             'config.columns.*.other_label' => 'nullable|string|max:255',
@@ -103,7 +103,7 @@ class FormFieldController extends Controller
         ]);
 
         $validated['name'] = $this->sanitizeName($validated['label']);
-        $validated['required'] = !in_array($validated['type'], ['section', 'table'], true)
+        $validated['required'] = !in_array($validated['type'], ['section', 'table', 'label'], true)
             && $request->boolean('required', false);
         $validated['options'] = $this->prepareOptions($request, $validated['type'], $validated['options'] ?? null);
         $validated['config'] = $this->prepareConfig($request, $form, $validated['type'], $field);
@@ -202,12 +202,12 @@ class FormFieldController extends Controller
                 'key' => $key,
                 'label' => $label,
                 'type' => $columnType,
-                'required' => !empty($column['required']),
+                'required' => $columnType === 'label' ? false : !empty($column['required']),
                 'options' => array_values(array_filter(
                     FormField::normalizeOptions($columnType, $column['options'] ?? null),
                     fn ($option) => $option !== FormField::OTHER_OPTION_VALUE
                 )),
-                'allow_custom_answer' => $allowCustomAnswer,
+                'allow_custom_answer' => $columnType === 'label' ? false : $allowCustomAnswer,
                 'other_label' => FormField::normalizeOtherLabel($column['other_label'] ?? null),
             ];
             $columnIndexLookup[$key] = $index;
@@ -239,7 +239,7 @@ class FormFieldController extends Controller
 
     private function prepareVisibilityConfig(Request $request, Form $form, string $type, ?FormField $currentField = null): ?array
     {
-        if (in_array($type, ['table', 'section'], true) || !$request->boolean('visibility.enabled', false)) {
+        if (in_array($type, ['table', 'section', 'label'], true) || !$request->boolean('visibility.enabled', false)) {
             return null;
         }
 
@@ -267,7 +267,7 @@ class FormFieldController extends Controller
 
         $controllerField = $form->fields()
             ->where('id', $controllerFieldId)
-            ->whereNotIn('type', ['section', 'table'])
+            ->whereNotIn('type', ['section', 'table', 'label'])
             ->first();
 
         if ($controllerField === null || ($currentField && $controllerField->id === $currentField->id)) {
@@ -352,7 +352,7 @@ class FormFieldController extends Controller
     private function visibilityControllerFields(Form $form, ?FormField $currentField = null)
     {
         return $form->fields()
-            ->whereNotIn('type', ['section', 'table'])
+            ->whereNotIn('type', ['section', 'table', 'label'])
             ->when($currentField !== null, fn ($query) => $query->where('id', '!=', $currentField->id))
             ->get();
     }

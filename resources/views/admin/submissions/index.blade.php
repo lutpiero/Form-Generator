@@ -39,7 +39,7 @@
                         <tr>
                             <th>#ID</th>
                             @foreach($form->fields as $field)
-                                @if($field->type !== 'section')
+                                @if(!in_array($field->type, ['section', 'label'], true))
                                 <th>{{ $field->label }}</th>
                                 @endif
                             @endforeach
@@ -53,7 +53,7 @@
                         <tr>
                             <td class="text-muted">{{ $submission->id }}</td>
                             @foreach($form->fields as $field)
-                                @if($field->type !== 'section')
+                                @if(!in_array($field->type, ['section', 'label'], true))
                                 <td>
                                     @php $val = $submission->data[$field->name] ?? '-'; @endphp
                                     {{ $field->formatSubmissionValue($val) }}
