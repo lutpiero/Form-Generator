@@ -80,6 +80,15 @@
         <label class="form-check-label fw-semibold" for="tableAutoNumber">Show auto-number column</label>
     </div>
 
+    <div class="mb-3">
+        <label class="form-label fw-semibold" for="tableMaxRows">Max Rows</label>
+        <input type="number" name="config[max_rows]" id="tableMaxRows" class="form-control @error('config.max_rows') is-invalid @enderror"
+               min="0" value="{{ old('config.max_rows', $field->table_max_rows ?? '') }}"
+               placeholder="Leave blank or 0 for unlimited">
+        @error('config.max_rows')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        <div class="form-text">Maximum number of rows a user can add. Leave blank or set to 0 for unlimited.</div>
+    </div>
+
     @error('config.columns')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
 
     <div id="tableColumnsContainer" class="d-flex flex-column gap-3">

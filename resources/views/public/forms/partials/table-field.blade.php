@@ -15,9 +15,12 @@
             $dependentsByController[$vis['field']][] = $col;
         }
     }
+
+    $maxRows = $field->table_max_rows;
+    $atLimit = $maxRows > 0 && count($tableRows) >= $maxRows;
 @endphp
 
-<div class="mb-4" data-repeatable-table data-field-id="{{ $field->id }}">
+<div class="mb-4" data-repeatable-table data-field-id="{{ $field->id }}"@if($maxRows > 0) data-max-rows="{{ $maxRows }}"@endif>
     <label class="form-label fw-semibold">{{ $field->label }}</label>
 
     <div class="table-responsive">
@@ -67,9 +70,14 @@
     </template>
 
     <div class="d-flex justify-content-between align-items-center gap-3">
-        <button type="button" class="btn btn-outline-primary btn-sm js-table-add-row">
-            <i class="bi bi-plus-circle"></i> Add Row
-        </button>
+        <div>
+            <button type="button" class="btn btn-outline-primary btn-sm js-table-add-row{{ $atLimit ? ' d-none' : '' }}"{{ $atLimit ? ' disabled' : '' }}>
+                <i class="bi bi-plus-circle"></i> Add Row
+            </button>
+            @if($maxRows > 0)
+                <small class="text-muted js-table-max-rows-msg{{ $atLimit ? '' : ' d-none' }}">Maximum of {{ $maxRows }} row(s) allowed.</small>
+            @endif
+        </div>
         <div class="text-danger small d-none" data-table-summary-error>Please complete the required fields in each row.</div>
     </div>
 </div>

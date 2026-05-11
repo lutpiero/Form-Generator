@@ -293,6 +293,15 @@ class FormController extends Controller
 
     protected function validateTableRows($validation, FormField $field, array $rows): void
     {
+        $maxRows = $field->table_max_rows;
+        if ($maxRows > 0 && count($rows) > $maxRows) {
+            $validation->errors()->add(
+                "table_fields.{$field->id}",
+                "You may not submit more than {$maxRows} row(s) for this field."
+            );
+            return;
+        }
+
         foreach ($rows as $rowIndex => $row) {
             if (!is_array($row)) {
                 continue;

@@ -113,6 +113,12 @@ class FormField extends Model
         return (bool) (is_array($this->config) ? ($this->config['auto_number'] ?? false) : false);
     }
 
+    public function getTableMaxRowsAttribute(): int
+    {
+        $value = is_array($this->config) ? ($this->config['max_rows'] ?? 0) : 0;
+        return max(0, (int) $value);
+    }
+
     public function getOtherInputNameAttribute(): string
     {
         return "{$this->name}_other";
