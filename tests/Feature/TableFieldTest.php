@@ -1097,7 +1097,7 @@ class TableFieldTest extends TestCase
         // Add button should be visible (1 initial row < 3 limit)
         $response->assertSee('js-table-add-row');
         // Button should NOT be hidden since we are below the limit
-        $this->assertStringNotContainsString('js-table-add-row" disabled', $response->getContent());
+        $this->assertStringNotContainsString('js-table-add-row d-none', $response->getContent());
     }
 
     public function test_public_form_hides_add_button_when_prefilled_rows_reach_limit(): void
@@ -1138,8 +1138,8 @@ class TableFieldTest extends TestCase
             ]);
 
         $response->assertOk();
-        // At limit: add button must be hidden
-        $response->assertSee('display:none', false);
+        // At limit: add button must be hidden via d-none class
+        $response->assertSee('js-table-add-row d-none', false);
         // Max rows message should be visible
         $response->assertSee('Maximum of 2 row(s) allowed.');
     }

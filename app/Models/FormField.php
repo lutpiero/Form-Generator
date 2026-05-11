@@ -116,8 +116,7 @@ class FormField extends Model
     public function getTableMaxRowsAttribute(): int
     {
         $value = is_array($this->config) ? ($this->config['max_rows'] ?? 0) : 0;
-        $int = (int) $value;
-        return $int > 0 ? $int : 0;
+        return max(0, (int) $value);
     }
 
     public function getOtherInputNameAttribute(): string

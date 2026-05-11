@@ -71,7 +71,7 @@
 
     <div class="d-flex justify-content-between align-items-center gap-3">
         <div>
-            <button type="button" class="btn btn-outline-primary btn-sm js-table-add-row"{{ $atLimit ? ' disabled style="display:none"' : '' }}>
+            <button type="button" class="btn btn-outline-primary btn-sm js-table-add-row{{ $atLimit ? ' d-none' : '' }}"{{ $atLimit ? ' disabled' : '' }}>
                 <i class="bi bi-plus-circle"></i> Add Row
             </button>
             @if($maxRows > 0)
