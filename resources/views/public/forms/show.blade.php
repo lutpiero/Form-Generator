@@ -317,9 +317,57 @@
         }
     }
 
+    function getTableCellOtherInput(cell) {
+        var columnKey = cell.dataset.columnKey;
+        if (!columnKey) {
+            return null;
+        }
+
+        return Array.from(cell.querySelectorAll('[data-other-input-field]')).find(function (input) {
+            return (input.name || '').endsWith('[' + columnKey + '_other]');
+        }) || null;
+    }
+
+    function getTableCellOtherToggle(cell, otherInput) {
+        var toggles = Array.from(cell.querySelectorAll('[data-other-toggle]'));
+        if (toggles.length === 0) {
+            return null;
+        }
+
+        if (otherInput && otherInput.id) {
+            var matchedByInputId = toggles.find(function (toggle) {
+                return toggle.dataset.otherInputId === otherInput.id;
+            });
+
+            if (matchedByInputId) {
+                return matchedByInputId;
+            }
+        }
+
+        var columnKey = cell.dataset.columnKey;
+        if (!columnKey) {
+            return toggles[0] || null;
+        }
+
+        return toggles.find(function (toggle) {
+            return (toggle.name || '').endsWith('[' + columnKey + ']');
+        }) || null;
+    }
+
+    function getTableCellSelect(cell) {
+        var columnKey = cell.dataset.columnKey;
+        if (!columnKey) {
+            return null;
+        }
+
+        return Array.from(cell.querySelectorAll('select')).find(function (select) {
+            return (select.name || '').endsWith('[' + columnKey + ']');
+        }) || null;
+    }
+
     function getCheckboxOtherState(cell) {
-        var toggle = cell.querySelector('[data-other-toggle]');
-        var input = cell.querySelector('[data-other-input-field]');
+        var input = getTableCellOtherInput(cell);
+        var toggle = getTableCellOtherToggle(cell, input);
 
         return {
             toggle: toggle,
@@ -368,23 +416,23 @@
             : selectedLabels.length + ' selected';
     }
 
-    /**
-     * Show or hide the "other" free-text input inside a radio or dropdown cell
-     * depending on whether the "other" option is currently selected.
-     */
     function updateTableCellOtherInputState(cell) {
         var type = cell.dataset.columnType;
-        var otherInput = cell.querySelector('[data-other-input-field]');
+        if (!['checkbox', 'radio', 'dropdown'].includes(type)) {
+            return;
+        }
+
+        var otherInput = getTableCellOtherInput(cell);
         if (!otherInput) {
             return;
         }
 
         var isOther = false;
-        if (type === 'radio') {
-            var otherToggle = cell.querySelector('[data-other-toggle]');
+        if (type === 'checkbox' || type === 'radio') {
+            var otherToggle = getTableCellOtherToggle(cell, otherInput);
             isOther = !!(otherToggle && otherToggle.checked);
         } else if (type === 'dropdown') {
-            var select = cell.querySelector('select');
+            var select = getTableCellSelect(cell);
             isOther = !!(select && select.value === otherOptionValue);
         }
 

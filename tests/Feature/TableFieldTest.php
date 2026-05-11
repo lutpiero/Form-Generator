@@ -981,6 +981,61 @@ class TableFieldTest extends TestCase
         $this->assertSame('other:My dropdown other', $submission->data[$field->name][0]['pick']);
     }
 
+    public function test_table_other_inputs_are_restored_after_validation_error(): void
+    {
+        $form = Form::create([
+            'name' => 'Restore Other Input Form',
+            'slug' => 'restore-other-input-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Table Field',
+            'name' => 'table_field',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'columns' => [
+                    ['key' => 'required_name', 'label' => 'Required Name', 'type' => 'text', 'required' => true, 'options' => []],
+                    ['key' => 'checkbox_col', 'label' => 'Checkbox Col', 'type' => 'checkbox', 'required' => false, 'options' => ['Option A'], 'allow_custom_answer' => true, 'other_label' => 'Other checkbox'],
+                    ['key' => 'radio_col', 'label' => 'Radio Col', 'type' => 'radio', 'required' => false, 'options' => ['Yes', 'No'], 'allow_custom_answer' => true, 'other_label' => 'Other radio'],
+                    ['key' => 'dropdown_col', 'label' => 'Dropdown Col', 'type' => 'dropdown', 'required' => false, 'options' => ['One', 'Two'], 'allow_custom_answer' => true, 'other_label' => 'Other dropdown'],
+                ],
+            ],
+        ]);
+
+        $response = $this->from(route('forms.show', $form))
+            ->post(route('forms.submit', $form), [
+                'table_fields' => [
+                    $field->id => [
+                        [
+                            '__row' => 1,
+                            'required_name' => '',
+                            'checkbox_col' => [\App\Models\FormField::OTHER_OPTION_VALUE],
+                            'checkbox_col_other' => 'Saved checkbox other',
+                            'radio_col' => \App\Models\FormField::OTHER_OPTION_VALUE,
+                            'radio_col_other' => 'Saved radio other',
+                            'dropdown_col' => \App\Models\FormField::OTHER_OPTION_VALUE,
+                            'dropdown_col_other' => 'Saved dropdown other',
+                        ],
+                    ],
+                ],
+            ]);
+
+        $response->assertRedirect(route('forms.show', $form));
+        $response->assertSessionHasErrors("table_fields.{$field->id}.0.required_name");
+
+        $response = $this->get(route('forms.show', $form));
+        $response->assertOk();
+        $response->assertSee('value="Saved checkbox other"', false);
+        $response->assertSee('value="Saved radio other"', false);
+        $response->assertSee('value="Saved dropdown other"', false);
+    }
+
     public function test_admin_column_builder_shows_allow_custom_answer_for_radio_and_dropdown(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
