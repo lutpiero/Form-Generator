@@ -758,4 +758,262 @@ class TableFieldTest extends TestCase
             ],
         ];
     }
+
+    public function test_conditional_column_has_no_th_header(): void
+    {
+        $form = Form::create([
+            'name' => 'Conditional Form',
+            'slug' => 'conditional-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create($this->tableFieldAttributesWithConditionalColumn());
+
+        $response = $this->get(route('forms.show', $form));
+
+        $response->assertOk();
+        // The dependent column should NOT appear as a <th>
+        $this->assertStringNotContainsString('<th class="align-top">Custom Value', $response->getContent());
+        // The controlling column SHOULD appear as a <th>
+        $response->assertSee('<th class="align-top">', false);
+        $response->assertSee('Has Custom Value');
+    }
+
+    public function test_conditional_column_renders_inline_inside_controlling_cell(): void
+    {
+        $form = Form::create([
+            'name' => 'Conditional Form',
+            'slug' => 'conditional-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create($this->tableFieldAttributesWithConditionalColumn());
+
+        $response = $this->get(route('forms.show', $form));
+
+        $response->assertOk();
+        // The dependent column renders as an inline div, not a <td>
+        $response->assertSee('data-inline-dependent-cell', false);
+        $response->assertSee('data-column-key="custom_value"', false);
+        // Initial state is hidden because rowValues is empty (has_custom_value not set)
+        $response->assertSee('data-visibility-state="hidden"', false);
+    }
+
+    public function test_radio_column_with_allow_custom_answer_renders_other_option(): void
+    {
+        $form = Form::create([
+            'name' => 'Radio Other Form',
+            'slug' => 'radio-other-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Radio Table',
+            'name' => 'radio_table',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'columns' => [
+                    [
+                        'key' => 'choice',
+                        'label' => 'Choice',
+                        'type' => 'radio',
+                        'required' => false,
+                        'options' => ['Option A', 'Option B'],
+                        'allow_custom_answer' => true,
+                        'other_label' => 'Something else',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->get(route('forms.show', $form));
+        $response->assertOk();
+        $response->assertSee('Something else');
+        $response->assertSee('data-other-toggle', false);
+        $response->assertSee('data-other-input-field', false);
+    }
+
+    public function test_radio_column_with_allow_custom_answer_stores_other_value(): void
+    {
+        $form = Form::create([
+            'name' => 'Radio Other Form',
+            'slug' => 'radio-other-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Radio Table',
+            'name' => 'radio_table',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'columns' => [
+                    [
+                        'key' => 'choice',
+                        'label' => 'Choice',
+                        'type' => 'radio',
+                        'required' => false,
+                        'options' => ['Option A', 'Option B'],
+                        'allow_custom_answer' => true,
+                        'other_label' => 'Something else',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'choice' => \App\Models\FormField::OTHER_OPTION_VALUE,
+                        'choice_other' => 'My custom answer',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+
+        $submission = \App\Models\FormSubmission::firstOrFail();
+        $this->assertSame('other:My custom answer', $submission->data[$field->name][0]['choice']);
+    }
+
+    public function test_dropdown_column_with_allow_custom_answer_renders_other_option(): void
+    {
+        $form = Form::create([
+            'name' => 'Dropdown Other Form',
+            'slug' => 'dropdown-other-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Dropdown Table',
+            'name' => 'dropdown_table',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'columns' => [
+                    [
+                        'key' => 'pick',
+                        'label' => 'Pick',
+                        'type' => 'dropdown',
+                        'required' => false,
+                        'options' => ['Alpha', 'Beta'],
+                        'allow_custom_answer' => true,
+                        'other_label' => 'Other option',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->get(route('forms.show', $form));
+        $response->assertOk();
+        $response->assertSee('Other option');
+        $response->assertSee('data-other-option', false);
+        $response->assertSee('data-other-input-field', false);
+    }
+
+    public function test_dropdown_column_with_allow_custom_answer_stores_other_value(): void
+    {
+        $form = Form::create([
+            'name' => 'Dropdown Other Form',
+            'slug' => 'dropdown-other-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Dropdown Table',
+            'name' => 'dropdown_table',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'columns' => [
+                    [
+                        'key' => 'pick',
+                        'label' => 'Pick',
+                        'type' => 'dropdown',
+                        'required' => false,
+                        'options' => ['Alpha', 'Beta'],
+                        'allow_custom_answer' => true,
+                        'other_label' => 'Other option',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->post(route('forms.submit', $form), [
+            'table_fields' => [
+                $field->id => [
+                    [
+                        '__row' => 1,
+                        'pick' => \App\Models\FormField::OTHER_OPTION_VALUE,
+                        'pick_other' => 'My dropdown other',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+
+        $submission = \App\Models\FormSubmission::firstOrFail();
+        $this->assertSame('other:My dropdown other', $submission->data[$field->name][0]['pick']);
+    }
+
+    public function test_admin_column_builder_shows_allow_custom_answer_for_radio_and_dropdown(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'slug' => 'builder-form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => 'Mixed Table',
+            'name' => 'mixed_table',
+            'type' => 'table',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'auto_number' => false,
+                'columns' => [
+                    ['key' => 'radio_col', 'label' => 'Radio Col', 'type' => 'radio', 'required' => false, 'options' => ['yes', 'no'], 'allow_custom_answer' => true, 'other_label' => 'Other Radio'],
+                    ['key' => 'dropdown_col', 'label' => 'Dropdown Col', 'type' => 'dropdown', 'required' => false, 'options' => ['A', 'B'], 'allow_custom_answer' => true, 'other_label' => 'Other Dropdown'],
+                ],
+            ],
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('admin.forms.fields.edit', [$form, $field]))
+            ->assertOk();
+
+        // Both radio and dropdown columns should show the allow_custom_answer group
+        $this->assertGreaterThanOrEqual(2, substr_count($response->getContent(), 'allow_custom_answer'));
+        $response->assertSee('Other Radio');
+        $response->assertSee('Other Dropdown');
+    }
 }

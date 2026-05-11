@@ -88,8 +88,9 @@ class FormField extends Model
                 : 'text';
 
             $options = self::normalizeOptions($type, $column['options'] ?? []);
-            $allowCustomAnswer = $type === 'checkbox'
-                && (!empty($column['allow_custom_answer']) || in_array(self::OTHER_OPTION_VALUE, $options, true));
+            $allowCustomAnswer = (in_array($type, ['radio', 'dropdown'], true) && !empty($column['allow_custom_answer']))
+                || ($type === 'checkbox'
+                    && (!empty($column['allow_custom_answer']) || in_array(self::OTHER_OPTION_VALUE, $options, true)));
 
             return [
                 'key' => is_string($column['key'] ?? null) ? $column['key'] : '',

@@ -4,6 +4,17 @@
     if (!is_array($tableRows) || $tableRows === []) {
         $tableRows = [[]];
     }
+
+    // Build maps for conditional (dependent) columns so they render inline inside their controlling column.
+    $dependentColumnKeys = [];
+    $dependentsByController = [];
+    foreach ($columns as $col) {
+        $vis = \App\Models\FormField::normalizeColumnVisibilityRule($col['visibility'] ?? null);
+        if ($vis) {
+            $dependentColumnKeys[] = $col['key'];
+            $dependentsByController[$vis['field']][] = $col;
+        }
+    }
 @endphp
 
 <div class="mb-4" data-repeatable-table data-field-id="{{ $field->id }}">
@@ -17,12 +28,14 @@
                         <th class="text-center align-top" style="width: 70px;">#</th>
                     @endif
                     @foreach($columns as $column)
-                        <th class="align-top">
-                            {{ $column['label'] }}
-                            @if($column['required'] ?? false)
-                                <span class="text-danger">*</span>
-                            @endif
-                        </th>
+                        @if(!in_array($column['key'], $dependentColumnKeys, true))
+                            <th class="align-top">
+                                {{ $column['label'] }}
+                                @if($column['required'] ?? false)
+                                    <span class="text-danger">*</span>
+                                @endif
+                            </th>
+                        @endif
                     @endforeach
                     <th class="text-center align-top" style="width: 90px;">Action</th>
                 </tr>
@@ -34,6 +47,8 @@
                         'columns' => $columns,
                         'rowIndex' => $rowIndex,
                         'rowValues' => $rowValues,
+                        'dependentColumnKeys' => $dependentColumnKeys,
+                        'dependentsByController' => $dependentsByController,
                     ])
                 @endforeach
             </tbody>
@@ -46,6 +61,8 @@
             'columns' => $columns,
             'rowIndex' => '__INDEX__',
             'rowValues' => [],
+            'dependentColumnKeys' => $dependentColumnKeys,
+            'dependentsByController' => $dependentsByController,
         ])
     </template>
 
