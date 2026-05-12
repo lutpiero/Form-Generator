@@ -6,6 +6,7 @@ use App\Models\Form;
 use App\Models\FormField;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -13,8 +14,12 @@ class CognitoFormsImporter
 {
     private const EXCLUDED_NODE_TYPES = ['form', 'page', 'layout', 'rule', 'validation', 'style'];
 
+    /** Minimum and maximum character length for a valid Cognito Forms internal form ID. */
+    private const FORM_ID_MIN_LENGTH = 10;
+    private const FORM_ID_MAX_LENGTH = 50;
+
     private const BROWSER_HEADERS = [
-        'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Referer' => 'https://www.cognitoforms.com/',
     ];
 
@@ -81,66 +86,15 @@ class CognitoFormsImporter
     }
 
     /**
-     * Try multiple strategies to retrieve the form schema from a public Cognito Forms URL.
-     *
-     * Strategy 1 – Direct JSON API endpoints (same calls the SPA JavaScript makes).
-     * Strategy 2 – Original URL with Accept: application/json (content negotiation).
-     * Strategy 3 – Fetch the HTML page and extract any embedded JSON schema.
+     * Fetch the form schema from a public Cognito Forms URL using a two-step approach:
+     *   Step 1 – GET the HTML shell and extract the internal form ID from it.
+     *   Step 2 – Call the internal form-definition endpoint with the extracted ID.
      *
      * @return array<string, mixed>
      */
     private function fetchSchema(string $url): array
     {
-        $path = parse_url($url, PHP_URL_PATH) ?? '';
-        $segments = array_values(array_filter(explode('/', trim($path, '/'))));
-        $orgSlug = $segments[0] ?? null;
-        $formSlug = $segments[1] ?? null;
-
-        // Strategy 1 – Try known internal API endpoint patterns
-        if ($orgSlug !== null && $formSlug !== null) {
-            $apiEndpoints = [
-                "https://www.cognitoforms.com/api/forms/{$orgSlug}/{$formSlug}",
-                "https://api.cognitoforms.com/forms/{$orgSlug}/{$formSlug}",
-                "https://www.cognitoforms.com/api/{$orgSlug}/{$formSlug}",
-            ];
-
-            foreach ($apiEndpoints as $endpoint) {
-                $response = Http::timeout(20)
-                    ->withHeaders(array_merge(self::BROWSER_HEADERS, [
-                        'Accept' => 'application/json',
-                        'X-Requested-With' => 'XMLHttpRequest',
-                    ]))
-                    ->get($endpoint);
-
-                if ($response->successful()) {
-                    $data = $response->json();
-
-                    if (is_array($data) && $data !== []) {
-                        if ($this->extractFieldNodes($data) !== []) {
-                            return $data;
-                        }
-                    }
-                }
-            }
-
-            // Strategy 2 – original URL with JSON content negotiation
-            $jsonResponse = Http::timeout(20)
-                ->withHeaders(array_merge(self::BROWSER_HEADERS, [
-                    'Accept' => 'application/json',
-                    'X-Requested-With' => 'XMLHttpRequest',
-                ]))
-                ->get($url);
-
-            if ($jsonResponse->successful()) {
-                $data = $jsonResponse->json();
-
-                if (is_array($data) && $data !== [] && $this->extractFieldNodes($data) !== []) {
-                    return $data;
-                }
-            }
-        }
-
-        // Strategy 3 – Fetch the HTML page and look for embedded JSON schema
+        // Step 1 — Fetch HTML shell and extract the internal form ID
         $htmlResponse = Http::timeout(20)
             ->withHeaders(array_merge(self::BROWSER_HEADERS, [
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -151,12 +105,48 @@ class CognitoFormsImporter
             throw new RuntimeException('Unable to fetch the Cognito Forms page. Please verify the URL is public and accessible.');
         }
 
-        $schema = $this->extractSchema($htmlResponse->body());
+        $formId = $this->extractFormId($htmlResponse->body());
 
-        if ($schema === null) {
+        if ($formId === null) {
             throw new RuntimeException(
-                'Could not load the Cognito Forms schema. Please ensure the form is public and the URL is correct. '
+                'Could not extract a Cognito form schema from the provided URL. '
+                . 'Please ensure the form is public and the URL is correct. '
                 . 'Example format: https://www.cognitoforms.com/YourOrg/YourFormName'
+            );
+        }
+
+        Log::debug('CognitoFormsImporter: extracted form ID', ['formId' => $formId, 'url' => $url]);
+
+        // Guard: validate the ID format before interpolating it into the API URL
+        if (!$this->isValidFormId($formId)) {
+            throw new RuntimeException(
+                'Could not extract a Cognito form schema from the provided URL. '
+                . 'Please ensure the form is public and the URL is correct. '
+                . 'Example format: https://www.cognitoforms.com/YourOrg/YourFormName'
+            );
+        }
+
+        // Step 2 — Fetch the form definition from the internal API endpoint
+        $formDefResponse = Http::timeout(20)
+            ->withHeaders(array_merge(self::BROWSER_HEADERS, [
+                'Accept' => 'application/json',
+                'Referer' => $url,
+            ]))
+            ->get("https://www.cognitoforms.com/svc/load-form/form-def/{$formId}/1");
+
+        if (!$formDefResponse->successful()) {
+            throw new RuntimeException(
+                'Could not load the Cognito Forms schema. The form definition API returned an unexpected response.'
+            );
+        }
+
+        $schema = $formDefResponse->json();
+
+        Log::debug('CognitoFormsImporter: received form definition', ['formId' => $formId, 'keys' => is_array($schema) ? array_keys($schema) : null]);
+
+        if (!is_array($schema) || $schema === []) {
+            throw new RuntimeException(
+                'Could not load the Cognito Forms schema. The API returned an empty or malformed response.'
             );
         }
 
@@ -164,115 +154,44 @@ class CognitoFormsImporter
     }
 
     /**
-     * @return array<string, mixed>|null
+     * Extract the Cognito Forms internal form ID from the raw HTML of the public form page.
+     * Tries several regex patterns in order of specificity.
      */
-    private function extractSchema(string $html): ?array
+    private function extractFormId(string $html): ?string
     {
-        $candidates = [];
-
-        $anchors = [
-            'window.__INITIAL_STATE__',
-            'window.__FORM__',
-            'window.__NEXT_DATA__',
-            'cognitoforms.data',
-            'formDefinition',
-            'formModel',
+        $patterns = [
+            // Full internal endpoint URL embedded in the HTML/JS
+            '/load-form\/form-def\/([A-Za-z0-9_-]+)\/\d+/',
+            // Partial form-def path
+            '/form-def\/([A-Za-z0-9_-]+)/',
+            // JSON property "formId"
+            '/"formId"\s*:\s*"([A-Za-z0-9_-]+)"/',
+            // JSON property "FormId" (PascalCase)
+            '/"FormId"\s*:\s*"([A-Za-z0-9_-]+)"/',
         ];
 
-        foreach ($anchors as $anchor) {
-            $json = $this->extractJsonObjectAfterAnchor($html, $anchor);
-            if ($json === null) {
-                continue;
-            }
-
-            $decoded = json_decode($json, true);
-            if (is_array($decoded)) {
-                $candidates[] = $decoded;
-            }
-        }
-
-        if (preg_match_all('/<script[^>]*type=["\']application\/json["\'][^>]*>(.*?)<\/script>/is', $html, $matches)) {
-            foreach ($matches[1] as $scriptJson) {
-                $decoded = json_decode(trim($scriptJson), true);
-                if (is_array($decoded)) {
-                    $candidates[] = $decoded;
-                }
-            }
-        }
-
-        $bestCandidate = null;
-        $bestScore = -1;
-
-        foreach ($candidates as $candidate) {
-            $score = count($this->extractFieldNodes($candidate));
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestCandidate = $candidate;
-            }
-        }
-
-        if (!is_array($bestCandidate) || $bestScore <= 0) {
-            return null;
-        }
-
-        return $bestCandidate;
-    }
-
-    private function extractJsonObjectAfterAnchor(string $content, string $anchor): ?string
-    {
-        $anchorPos = strpos($content, $anchor);
-
-        if ($anchorPos === false) {
-            return null;
-        }
-
-        $start = strpos($content, '{', $anchorPos);
-        if ($start === false) {
-            return null;
-        }
-
-        $depth = 0;
-        $inString = false;
-        $escaped = false;
-        $length = strlen($content);
-
-        for ($i = $start; $i < $length; $i++) {
-            $char = $content[$i];
-
-            if ($inString) {
-                if ($escaped) {
-                    $escaped = false;
-                    continue;
-                }
-
-                if ($char === '\\') {
-                    $escaped = true;
-                    continue;
-                }
-
-                if ($char === '"') {
-                    $inString = false;
-                }
-
-                continue;
-            }
-
-            if ($char === '"') {
-                $inString = true;
-                continue;
-            }
-
-            if ($char === '{') {
-                $depth++;
-            } elseif ($char === '}') {
-                $depth--;
-                if ($depth === 0) {
-                    return substr($content, $start, ($i - $start) + 1);
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $html, $matches)) {
+                $id = $matches[1];
+                if ($this->isValidFormId($id)) {
+                    return $id;
                 }
             }
         }
 
         return null;
+    }
+
+    /**
+     * Validate that the extracted form ID conforms to Cognito Forms' expected format:
+     * alphanumeric + hyphens/underscores, between FORM_ID_MIN_LENGTH and FORM_ID_MAX_LENGTH characters.
+     */
+    private function isValidFormId(string $id): bool
+    {
+        $len = strlen($id);
+        return $len >= self::FORM_ID_MIN_LENGTH
+            && $len <= self::FORM_ID_MAX_LENGTH
+            && (bool) preg_match('/^[A-Za-z0-9_-]+$/', $id);
     }
 
     /**
@@ -291,7 +210,7 @@ class CognitoFormsImporter
 
             if ($this->looksLikeFieldNode($value)) {
                 $fingerprint = md5(json_encode([
-                    strtolower($this->stringValue($value, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType'])),
+                    strtolower($this->stringValue($value, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType', '_type'])),
                     strtolower($this->stringValue($value, ['name', 'Name'])),
                     strtolower($this->stringValue($value, ['label', 'Label', 'title', 'Title', 'text', 'Text'])),
                 ]));
@@ -319,7 +238,7 @@ class CognitoFormsImporter
      */
     private function looksLikeFieldNode(array $node): bool
     {
-        $type = strtolower($this->stringValue($node, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType']));
+        $type = strtolower($this->stringValue($node, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType', '_type']));
 
         if ($type === '') {
             return false;
@@ -339,16 +258,23 @@ class CognitoFormsImporter
      */
     private function extractFormName(array $schema): string
     {
-        $name = $this->stringValue($schema, [
-            'name',
-            'Name',
-            'title',
-            'Title',
-            'formName',
-            'FormName',
-            'formTitle',
-            'FormTitle',
-        ]);
+        $nameKeys = [
+            'name', 'Name', 'title', 'Title', 'formName', 'FormName', 'formTitle', 'FormTitle',
+        ];
+
+        $name = $this->stringValue($schema, $nameKeys);
+
+        // Also check inside a nested 'Form' / 'form' object (Cognito's svc API wraps data this way)
+        if ($name === '') {
+            foreach (['Form', 'form'] as $key) {
+                if (isset($schema[$key]) && is_array($schema[$key])) {
+                    $name = $this->stringValue($schema[$key], $nameKeys);
+                    if ($name !== '') {
+                        break;
+                    }
+                }
+            }
+        }
 
         return $name !== '' ? Str::limit($name, 255, '') : 'Imported Cognito Form';
     }
@@ -358,7 +284,21 @@ class CognitoFormsImporter
      */
     private function extractDescription(array $schema): ?string
     {
-        $description = $this->stringValue($schema, ['description', 'Description', 'instructions', 'Instructions']);
+        $descKeys = ['description', 'Description', 'instructions', 'Instructions'];
+
+        $description = $this->stringValue($schema, $descKeys);
+
+        // Also check inside a nested 'Form' / 'form' object
+        if ($description === '') {
+            foreach (['Form', 'form'] as $key) {
+                if (isset($schema[$key]) && is_array($schema[$key])) {
+                    $description = $this->stringValue($schema[$key], $descKeys);
+                    if ($description !== '') {
+                        break;
+                    }
+                }
+            }
+        }
 
         if ($description === '') {
             return null;
@@ -395,7 +335,7 @@ class CognitoFormsImporter
             $name = $label;
         }
 
-        $rawType = strtolower($this->stringValue($node, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType']));
+        $rawType = strtolower($this->stringValue($node, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType', '_type']));
         $placeholder = $this->stringValue($node, ['placeholder', 'Placeholder', 'prompt', 'Prompt']);
         $defaultValue = $this->stringValue($node, ['default', 'Default', 'defaultValue', 'DefaultValue']);
         $required = $this->boolValue($node, ['required', 'Required', 'isRequired', 'IsRequired']);

@@ -17,42 +17,43 @@ class CognitoImportTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Http::fake([
-            // API endpoint attempts return 404 — fall through to HTML scraping
-            'https://www.cognitoforms.com/api/forms/Acme/CustomerIntake' => Http::response('', 404),
-            'https://api.cognitoforms.com/forms/Acme/CustomerIntake' => Http::response('', 404),
-            'https://www.cognitoforms.com/api/Acme/CustomerIntake' => Http::response('', 404),
-            // The original URL is tried twice: once with JSON headers (returns HTML → no valid JSON)
-            // and once with HTML headers (returns the schema-containing HTML page).
-            // Both attempts match this same fake entry.
+            // Step 1 — HTML page returns a shell that embeds the svc/load-form URL (with form ID)
             'https://www.cognitoforms.com/Acme/CustomerIntake' => Http::response(<<<'HTML'
                 <html>
-                    <head></head>
-                    <body>
+                    <head>
                         <script>
-                            window.__INITIAL_STATE__ = {
-                                "formName": "Customer Intake",
-                                "description": "Imported from Cognito",
-                                "fields": [
-                                    {"type": "Section", "label": "Personal Information"},
-                                    {"type": "Text", "name": "FullName", "label": "Full Name", "required": true, "placeholder": "John Doe"},
-                                    {"type": "Text", "label": "Biography", "multiline": true},
-                                    {
-                                        "type": "Choice",
-                                        "name": "PreferredContact",
-                                        "label": "Preferred Contact",
-                                        "presentation": "Radio",
-                                        "choices": [
-                                            {"label": "Email"},
-                                            {"label": "Phone"}
-                                        ]
-                                    },
-                                    {"type": "Signature", "label": "Sign Here"}
-                                ]
+                            window.__CF_INIT__ = {
+                                "apiBase": "https://www.cognitoforms.com/svc/load-form/form-def/TestFormId12345678901/1"
                             };
                         </script>
-                    </body>
+                    </head>
+                    <body><div id="app"></div></body>
                 </html>
                 HTML, 200),
+
+            // Step 2 — Internal form-definition endpoint returns the actual schema
+            'https://www.cognitoforms.com/svc/load-form/form-def/TestFormId12345678901/1' => Http::response([
+                'Form' => [
+                    'Name' => 'Customer Intake',
+                    'Description' => 'Imported from Cognito',
+                    'Fields' => [
+                        ['Type' => 'Section', 'Label' => 'Personal Information'],
+                        ['Type' => 'Text', 'Name' => 'FullName', 'Label' => 'Full Name', 'Required' => true, 'Placeholder' => 'John Doe'],
+                        ['Type' => 'Text', 'Label' => 'Biography', 'MultiLine' => true],
+                        [
+                            'Type' => 'Choice',
+                            'Name' => 'PreferredContact',
+                            'Label' => 'Preferred Contact',
+                            'Presentation' => 'Radio',
+                            'Choices' => [
+                                ['Label' => 'Email'],
+                                ['Label' => 'Phone'],
+                            ],
+                        ],
+                        ['Type' => 'Signature', 'Label' => 'Sign Here'],
+                    ],
+                ],
+            ], 200),
         ]);
 
         $response = $this->actingAs($admin)
@@ -105,9 +106,7 @@ class CognitoImportTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Http::fake([
-            'https://www.cognitoforms.com/api/forms/Acme/UnavailableForm' => Http::response('', 404),
-            'https://api.cognitoforms.com/forms/Acme/UnavailableForm' => Http::response('', 404),
-            'https://www.cognitoforms.com/api/Acme/UnavailableForm' => Http::response('', 404),
+            // HTML page has no recognisable form-ID pattern
             'https://www.cognitoforms.com/Acme/UnavailableForm' => Http::response('<html><body>No schema here.</body></html>', 200),
         ]);
 
@@ -120,7 +119,7 @@ class CognitoImportTest extends TestCase
         $response
             ->assertRedirect(route('admin.forms.index'))
             ->assertSessionHas('error', function (string $message) {
-                return str_contains($message, 'Could not load the Cognito Forms schema')
+                return str_contains($message, 'Could not extract a Cognito form schema from the provided URL')
                     && str_contains($message, 'https://www.cognitoforms.com/YourOrg/YourFormName');
             });
 
