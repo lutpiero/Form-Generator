@@ -12,8 +12,6 @@ use RuntimeException;
 
 class CognitoFormsImporter
 {
-    private const EXCLUDED_NODE_TYPES = ['form', 'page', 'layout', 'rule', 'validation', 'style'];
-
     /** Minimum and maximum character length for a valid Cognito Forms internal form ID. */
     private const FORM_ID_MIN_LENGTH = 10;
     private const FORM_ID_MAX_LENGTH = 50;
@@ -29,7 +27,7 @@ class CognitoFormsImporter
     public function import(string $url): array
     {
         $schema = $this->fetchSchema($url);
-        $sourceFields = $this->extractFieldNodes($schema);
+        $sourceFields = $schema['fields'];
 
         if ($sourceFields === []) {
             throw new RuntimeException('No form fields were found in the Cognito Forms page schema.');
@@ -37,8 +35,8 @@ class CognitoFormsImporter
 
         return DB::transaction(function () use ($schema, $sourceFields) {
             $form = Form::create([
-                'name' => $this->extractFormName($schema),
-                'description' => $this->extractDescription($schema),
+                'name' => $schema['formTitle'],
+                'description' => null,
                 'is_active' => true,
                 'captcha_enabled' => false,
                 'captcha_type' => 'math',
@@ -48,8 +46,8 @@ class CognitoFormsImporter
             $imported = 0;
             $skipped = [];
 
-            foreach ($sourceFields as $node) {
-                $mappedField = $this->mapField($node);
+            foreach ($sourceFields as $fieldData) {
+                $mappedField = $this->mapField($fieldData);
 
                 if ($mappedField['skip']) {
                     $skipped[] = sprintf('%s (%s)', $mappedField['label'], $mappedField['reason']);
@@ -63,10 +61,10 @@ class CognitoFormsImporter
                     'name' => $fieldName,
                     'type' => $mappedField['type'],
                     'required' => !in_array($mappedField['type'], ['section', 'label'], true) && $mappedField['required'],
-                    'placeholder' => $mappedField['placeholder'] !== '' ? Str::limit($mappedField['placeholder'], 255, '') : null,
-                    'default_value' => $mappedField['default'] !== '' ? Str::limit($mappedField['default'], 255, '') : null,
+                    'placeholder' => null,
+                    'default_value' => null,
                     'options' => $mappedField['options'] === [] ? null : json_encode($mappedField['options']),
-                    'config' => $mappedField['config'] === [] ? null : $mappedField['config'],
+                    'config' => null,
                     'order' => $imported,
                 ]);
 
@@ -86,15 +84,15 @@ class CognitoFormsImporter
     }
 
     /**
-     * Fetch the form schema from a public Cognito Forms URL using a two-step approach:
-     *   Step 1 – GET the HTML shell and extract the internal form ID from it.
-     *   Step 2 – Call the internal form-definition endpoint with the extracted ID.
+     * Fetch and parse the form definition from a public Cognito Forms URL using a two-step approach:
+     *   Step 1 – GET the HTML shell and extract the internal form key and form number.
+     *   Step 2 – Fetch the JS form-definition endpoint and parse the IIFE payload.
      *
-     * @return array<string, mixed>
+     * @return array{formTitle: string, fields: array<int, array<string, mixed>>}
      */
     private function fetchSchema(string $url): array
     {
-        // Step 1 — Fetch HTML shell and extract the internal form ID
+        // Step 1 — Fetch HTML shell and extract form key / form number
         $htmlResponse = Http::timeout(20)
             ->withHeaders(array_merge(self::BROWSER_HEADERS, [
                 'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -119,31 +117,325 @@ class CognitoFormsImporter
 
         Log::debug('CognitoFormsImporter: extracted form ID', ['formKey' => $formKey, 'formNumber' => $formNumber, 'url' => $url]);
 
-        // Step 2 — Fetch the form definition from the internal API endpoint
-        $formDefResponse = Http::timeout(20)
+        // Step 2 — Fetch the JS form definition
+        $jsResponse = Http::timeout(20)
             ->withHeaders(array_merge(self::BROWSER_HEADERS, [
-                'Accept' => 'application/json',
+                'Accept' => '*/*',
                 'Referer' => $url,
             ]))
             ->get("https://www.cognitoforms.com/svc/load-form/form-def/{$formKey}/{$formNumber}");
 
-        if (!$formDefResponse->successful()) {
+        if (!$jsResponse->successful()) {
             throw new RuntimeException(
-                'Could not load the Cognito Forms schema. The form definition API returned an unexpected response.'
+                'Could not load the Cognito Forms schema. The form definition endpoint returned an unexpected response.'
             );
         }
 
-        $schema = $formDefResponse->json();
+        $js = $jsResponse->body();
 
-        Log::debug('CognitoFormsImporter: received form definition', ['formKey' => $formKey, 'formNumber' => $formNumber, 'keys' => is_array($schema) ? array_keys($schema) : null]);
-
-        if (!is_array($schema) || $schema === []) {
+        if (empty($js)) {
             throw new RuntimeException(
-                'Could not load the Cognito Forms schema. The API returned an empty or malformed response.'
+                'Could not load the Cognito Forms schema. The form definition endpoint returned an empty response.'
             );
         }
 
-        return $schema;
+        Log::debug('CognitoFormsImporter: received JS form definition', [
+            'formKey' => $formKey,
+            'formNumber' => $formNumber,
+            'length' => strlen($js),
+        ]);
+
+        return $this->parseJsFormDefinition($js, $formNumber);
+    }
+
+    /**
+     * Parse the Cognito Forms JS IIFE payload into a structured PHP array.
+     *
+     * The JS has the shape:
+     *   (function(apiKey, formId, tmpl, model, theme, ...) { ... })(
+     *       "KEY", "FORM_NUMBER", "HTML_TEMPLATE", (function(core, getModule) { ... }), ..., null
+     *   );
+     *
+     * We extract the 3rd argument (HTML template) and the 4th argument (model function body).
+     *
+     * @return array{formTitle: string, fields: array<int, array<string, mixed>>}
+     */
+    private function parseJsFormDefinition(string $js, string $formNumber): array
+    {
+        $tmpl = $this->extractTmplString($js, $formNumber);
+
+        if ($tmpl === null) {
+            Log::warning('CognitoFormsImporter: could not extract template string from JS', ['length' => strlen($js)]);
+            throw new RuntimeException(
+                'Could not parse the Cognito Forms page schema. The form definition format was not recognised.'
+            );
+        }
+
+        $formTitle = $this->extractFormTitle($js);
+        $fields = $this->buildFieldList($tmpl, $js);
+
+        return [
+            'formTitle' => $formTitle,
+            'fields' => $fields,
+        ];
+    }
+
+    /**
+     * Extract and decode the HTML template string (3rd IIFE argument) from the raw JS.
+     *
+     * In the JS, the arguments are: ("apiKey", "formNumber", "tmplString", modelFn, theme, null).
+     * We locate the 3rd argument by matching `"<formNumber>",` followed by a quoted string.
+     */
+    private function extractTmplString(string $js, string $formNumber): ?string
+    {
+        $escapedNumber = preg_quote($formNumber, '/');
+
+        // Match: "formNumber", "tmpl string (possibly with JS escape sequences)"
+        if (!preg_match('/"' . $escapedNumber . '",\s*"((?:[^"\\\\]|\\\\.)*)"/s', $js, $m)) {
+            return null;
+        }
+
+        $raw = $m[1];
+
+        // 1. Decode \uXXXX unicode escapes (e.g. \u003c → <, \u0027 → ')
+        $decoded = preg_replace_callback(
+            '/\\\\u([0-9a-fA-F]{4})/',
+            static function (array $m): string {
+                $char = mb_chr(hexdec($m[1]), 'UTF-8');
+                // mb_chr returns false for invalid codepoints; fall back to the original sequence
+                return $char !== false ? $char : $m[0];
+            },
+            $raw
+        );
+
+        if (!is_string($decoded)) {
+            $decoded = $raw;
+        }
+
+        // 2. Decode remaining simple JS escape sequences
+        $decoded = str_replace(
+            ['\\\\', '\\"', '\\/', '\\n', '\\r', '\\t'],
+            ['\\',   '"',   '/',   "\n",  "\r",  "\t"],
+            $decoded
+        );
+
+        return $decoded;
+    }
+
+    /**
+     * Extract the form title from the model JS.
+     * Looks for `"Name": "..."` inside the options object.
+     */
+    private function extractFormTitle(string $js): string
+    {
+        if (preg_match('/"Name"\s*:\s*"([^"]+)"/', $js, $m)) {
+            return $m[1];
+        }
+
+        return 'Imported Cognito Form';
+    }
+
+    /**
+     * Build the ordered list of field descriptors by scanning <c-section> and <c-field>
+     * tags in the decoded HTML template and enriching them with labels / required flags
+     * extracted from the model JS.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildFieldList(string $tmpl, string $js): array
+    {
+        $elements = [];
+
+        // Collect all <c-section> tags with their byte-offset in the template
+        if (preg_match_all('/<c-section\s([^>]+)>/s', $tmpl, $sectionMatches, PREG_OFFSET_CAPTURE)) {
+            foreach ($sectionMatches[0] as $i => $match) {
+                $attrStr = $sectionMatches[1][$i][0];
+                if (preg_match("/source='([^']+)'/", $attrStr, $src) && $src[1] !== '') {
+                    $elements[] = [
+                        'kind'   => 'section',
+                        'source' => $src[1],
+                        'offset' => $match[1],
+                    ];
+                }
+            }
+        }
+
+        // Collect all <c-field> tags with their byte-offset in the template
+        if (preg_match_all('/<c-field\s([^>]+)>/s', $tmpl, $fieldMatches, PREG_OFFSET_CAPTURE)) {
+            foreach ($fieldMatches[0] as $i => $match) {
+                $attrStr = $fieldMatches[1][$i][0];
+                preg_match("/source='([^']+)'/", $attrStr, $src);
+                preg_match("/\btype='([^']+)'/", $attrStr, $type);
+                preg_match("/subtype='([^']+)'/", $attrStr, $subtype);
+                $source = $src[1] ?? '';
+                if ($source !== '') {
+                    $elements[] = [
+                        'kind'        => 'field',
+                        'source'      => $source,
+                        'cognito_type' => $type[1] ?? '',
+                        'subtype'     => $subtype[1] ?? '',
+                        'offset'      => $match[1],
+                    ];
+                }
+            }
+        }
+
+        // Sort by position in the template so order matches the rendered form
+        usort($elements, static fn (array $a, array $b): int => $a['offset'] <=> $b['offset']);
+
+        // Build field descriptors
+        $fields = [];
+        foreach ($elements as $el) {
+            if ($el['kind'] === 'section') {
+                $fields[] = [
+                    'source'       => $el['source'],
+                    'cognito_type' => 'section',
+                    'subtype'      => '',
+                    'label'        => $this->extractSectionLabel($el['source'], $js),
+                    'required'     => false,
+                ];
+            } else {
+                $fields[] = [
+                    'source'       => $el['source'],
+                    'cognito_type' => $el['cognito_type'],
+                    'subtype'      => $el['subtype'],
+                    'label'        => $this->extractFieldLabel($el['source'], $js),
+                    'required'     => $this->extractFieldRequired($el['source'], $js),
+                ];
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Extract the human-readable label for a section from the model JS.
+     * Looks for `sectionName: { ... label: "..." ... }`.
+     */
+    private function extractSectionLabel(string $sectionName, string $js): string
+    {
+        $block = $this->extractDefinitionBlock($sectionName, $js);
+
+        if ($block !== null && preg_match('/\blabel\s*:\s*"([^"]+)"/', $block, $m)) {
+            return $m[1];
+        }
+
+        return $sectionName;
+    }
+
+    /**
+     * Extract the human-readable label for a field from the model JS.
+     * Looks for `fieldName: { ... label: "..." ... }`.
+     */
+    private function extractFieldLabel(string $fieldName, string $js): string
+    {
+        $block = $this->extractDefinitionBlock($fieldName, $js);
+
+        if ($block !== null && preg_match('/\blabel\s*:\s*"([^"]+)"/', $block, $m)) {
+            return $m[1];
+        }
+
+        return $fieldName;
+    }
+
+    /**
+     * Determine whether a field is required by checking for the `required:` key
+     * in its model definition.
+     */
+    private function extractFieldRequired(string $fieldName, string $js): bool
+    {
+        $block = $this->extractDefinitionBlock($fieldName, $js);
+
+        return $block !== null && (bool) preg_match('/\brequired\s*:/', $block);
+    }
+
+    /**
+     * Extract the JS object body (including one level of nested braces) for a named key.
+     *
+     * Handles definitions like:
+     *   fieldName: {
+     *       label: "...",
+     *       required: { message: "..." },   <- nested brace is handled
+     *       type: '...'
+     *   }
+     *
+     * Returns the full matched block (including outer braces), or null if not found.
+     */
+    private function extractDefinitionBlock(string $name, string $js): ?string
+    {
+        // Match: name: { <content supporting one level of nested {}>  }
+        if (preg_match(
+            '/\b' . preg_quote($name, '/') . '\s*:\s*(\{(?:[^{}]|\{[^{}]*\})*\})/s',
+            $js,
+            $m
+        )) {
+            return $m[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Map a Cognito Forms field descriptor to a Form-Generator field definition.
+     *
+     * @param array{source: string, cognito_type: string, subtype: string, label: string, required: bool} $fieldData
+     * @return array{skip: bool, reason: string, label: string, name: string, type: string, required: bool, options: array<int, string>}
+     */
+    private function mapField(array $fieldData): array
+    {
+        $cognitoType = strtolower($fieldData['cognito_type'] ?? '');
+        $subtype = strtolower($fieldData['subtype'] ?? '');
+        $label = $fieldData['label'] !== '' ? $fieldData['label'] : ($fieldData['source'] ?? 'Imported Field');
+        $source = $fieldData['source'] ?? '';
+
+        if ($cognitoType === 'section') {
+            return [
+                'skip'     => false,
+                'reason'   => '',
+                'label'    => $label,
+                'name'     => $source,
+                'type'     => 'label',
+                'required' => false,
+                'options'  => [],
+            ];
+        }
+
+        $mappedType = $this->mapCognitoType($cognitoType, $subtype);
+        $options = [];
+
+        if ($mappedType === 'checkbox' && $cognitoType === 'yesno') {
+            $options = FormField::normalizeOptions('checkbox', ['Yes']);
+        }
+
+        return [
+            'skip'     => false,
+            'reason'   => '',
+            'label'    => $label,
+            'name'     => $source,
+            'type'     => $mappedType,
+            'required' => $fieldData['required'],
+            'options'  => $options,
+        ];
+    }
+
+    /**
+     * Map a Cognito Forms type + subtype pair to the corresponding Form-Generator field type.
+     */
+    private function mapCognitoType(string $cognitoType, string $subtype): string
+    {
+        // text with multiplelines subtype → textarea
+        if ($cognitoType === 'text' && $subtype === 'multiplelines') {
+            return 'textarea';
+        }
+
+        return match ($cognitoType) {
+            'email'                => 'email',
+            'number', 'currency'   => 'number',
+            'yesno'                => 'checkbox',
+            'address'              => 'textarea',
+            'choice'               => $subtype === 'radio' ? 'radio' : 'dropdown',
+            default                => 'text',   // name, phone, website, date, time, file, text/singleline, unknown
+        };
     }
 
     /**
@@ -178,7 +470,7 @@ class CognitoFormsImporter
             return [$m[1], '1'];
         }
 
-        // Fallback: JSON property "formId" or "FormId" (assume form number 1)
+        // Fallback: JSON-style formId property (assume form number 1)
         foreach (['"formId"\s*:\s*"([A-Za-z0-9_-]+)"', '"FormId"\s*:\s*"([A-Za-z0-9_-]+)"'] as $pattern) {
             if (preg_match("/{$pattern}/", $html, $m) && $this->isValidFormId($m[1])) {
                 return [$m[1], '1'];
@@ -195,334 +487,10 @@ class CognitoFormsImporter
     private function isValidFormId(string $id): bool
     {
         $len = strlen($id);
+
         return $len >= self::FORM_ID_MIN_LENGTH
             && $len <= self::FORM_ID_MAX_LENGTH
             && (bool) preg_match('/^[A-Za-z0-9_-]+$/', $id);
-    }
-
-    /**
-     * @param array<string, mixed> $schema
-     * @return array<int, array<string, mixed>>
-     */
-    private function extractFieldNodes(array $schema): array
-    {
-        $nodes = [];
-        $seen = [];
-
-        $walk = function (mixed $value) use (&$walk, &$nodes, &$seen): void {
-            if (!is_array($value)) {
-                return;
-            }
-
-            if ($this->looksLikeFieldNode($value)) {
-                $fingerprint = md5(json_encode([
-                    strtolower($this->stringValue($value, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType', '_type'])),
-                    strtolower($this->stringValue($value, ['name', 'Name'])),
-                    strtolower($this->stringValue($value, ['label', 'Label', 'title', 'Title', 'text', 'Text'])),
-                ]));
-
-                if (!isset($seen[$fingerprint])) {
-                    $seen[$fingerprint] = true;
-                    $nodes[] = $value;
-                }
-            }
-
-            foreach ($value as $child) {
-                if (is_array($child)) {
-                    $walk($child);
-                }
-            }
-        };
-
-        $walk($schema);
-
-        return $nodes;
-    }
-
-    /**
-     * @param array<string, mixed> $node
-     */
-    private function looksLikeFieldNode(array $node): bool
-    {
-        $type = strtolower($this->stringValue($node, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType', '_type']));
-
-        if ($type === '') {
-            return false;
-        }
-
-        if (in_array($type, self::EXCLUDED_NODE_TYPES, true)) {
-            return false;
-        }
-
-        $label = $this->stringValue($node, ['label', 'Label', 'title', 'Title', 'text', 'Text', 'name', 'Name']);
-
-        return $label !== '' || array_key_exists('options', $node) || array_key_exists('choices', $node);
-    }
-
-    /**
-     * @param array<string, mixed> $schema
-     */
-    private function extractFormName(array $schema): string
-    {
-        $nameKeys = [
-            'name', 'Name', 'title', 'Title', 'formName', 'FormName', 'formTitle', 'FormTitle',
-        ];
-
-        $name = $this->stringValue($schema, $nameKeys);
-
-        // Also check inside a nested 'Form' / 'form' object (Cognito's svc API wraps data this way)
-        if ($name === '') {
-            foreach (['Form', 'form'] as $key) {
-                if (isset($schema[$key]) && is_array($schema[$key])) {
-                    $name = $this->stringValue($schema[$key], $nameKeys);
-                    if ($name !== '') {
-                        break;
-                    }
-                }
-            }
-        }
-
-        return $name !== '' ? Str::limit($name, 255, '') : 'Imported Cognito Form';
-    }
-
-    /**
-     * @param array<string, mixed> $schema
-     */
-    private function extractDescription(array $schema): ?string
-    {
-        $descKeys = ['description', 'Description', 'instructions', 'Instructions'];
-
-        $description = $this->stringValue($schema, $descKeys);
-
-        // Also check inside a nested 'Form' / 'form' object
-        if ($description === '') {
-            foreach (['Form', 'form'] as $key) {
-                if (isset($schema[$key]) && is_array($schema[$key])) {
-                    $description = $this->stringValue($schema[$key], $descKeys);
-                    if ($description !== '') {
-                        break;
-                    }
-                }
-            }
-        }
-
-        if ($description === '') {
-            return null;
-        }
-
-        return Str::limit($description, 65000, '');
-    }
-
-    /**
-     * @param array<string, mixed> $node
-     * @return array{
-     *   skip: bool,
-     *   reason: string,
-     *   label: string,
-     *   name: string,
-     *   type: string,
-     *   required: bool,
-     *   placeholder: string,
-     *   default: string,
-     *   options: array<int, string>,
-     *   config: array<string, mixed>
-     * }
-     */
-    private function mapField(array $node): array
-    {
-        $label = trim($this->stringValue($node, ['label', 'Label', 'title', 'Title', 'text', 'Text', 'name', 'Name']));
-        $name = trim($this->stringValue($node, ['name', 'Name', 'key', 'Key']));
-
-        if ($label === '') {
-            $label = $name !== '' ? $name : 'Imported Field';
-        }
-
-        if ($name === '') {
-            $name = $label;
-        }
-
-        $rawType = strtolower($this->stringValue($node, ['type', 'Type', 'fieldType', 'FieldType', 'controlType', 'ControlType', '_type']));
-        $placeholder = $this->stringValue($node, ['placeholder', 'Placeholder', 'prompt', 'Prompt']);
-        $defaultValue = $this->stringValue($node, ['default', 'Default', 'defaultValue', 'DefaultValue']);
-        $required = $this->boolValue($node, ['required', 'Required', 'isRequired', 'IsRequired']);
-
-        $mappedType = 'text';
-        $skip = false;
-        $reason = '';
-        $options = [];
-
-        if (str_contains($rawType, 'section')) {
-            $mappedType = 'section';
-        } elseif (str_contains($rawType, 'signature')) {
-            $skip = true;
-            $reason = 'Signature fields are not supported';
-        } elseif (str_contains($rawType, 'table') || str_contains($rawType, 'repeat')) {
-            $skip = true;
-            $reason = 'Repeating/table fields are not supported';
-        } elseif (str_contains($rawType, 'email')) {
-            $mappedType = 'email';
-        } elseif (str_contains($rawType, 'phone')) {
-            $mappedType = 'phone';
-        } elseif (str_contains($rawType, 'number') || str_contains($rawType, 'currency')) {
-            $mappedType = 'number';
-        } elseif (str_contains($rawType, 'name')) {
-            $mappedType = 'text';
-        } elseif (str_contains($rawType, 'address')) {
-            $mappedType = 'textarea';
-        } elseif (str_contains($rawType, 'fileupload') || str_contains($rawType, 'file')) {
-            $mappedType = 'text';
-        } elseif (str_contains($rawType, 'date') || str_contains($rawType, 'time')) {
-            $mappedType = 'text';
-        } elseif (str_contains($rawType, 'yesno') || ($rawType === 'checkbox' && $this->extractOptions($node) === [])) {
-            $mappedType = 'checkbox';
-            $options = ['Yes'];
-        } elseif (str_contains($rawType, 'checkbox')) {
-            $mappedType = 'checkbox';
-            $options = $this->extractOptions($node);
-        } elseif (str_contains($rawType, 'choice')) {
-            $presentation = strtolower($this->stringValue($node, ['presentation', 'Presentation', 'displayType', 'DisplayType', 'style', 'Style']));
-            $allowMultiple = $this->boolValue($node, ['allowMultiple', 'AllowMultiple', 'multiple', 'Multiple']);
-
-            if ($allowMultiple) {
-                $mappedType = 'checkbox';
-            } elseif (str_contains($presentation, 'radio')) {
-                $mappedType = 'radio';
-            } else {
-                $mappedType = 'dropdown';
-            }
-
-            $options = $this->extractOptions($node);
-        } elseif (str_contains($rawType, 'radio')) {
-            $mappedType = 'radio';
-            $options = $this->extractOptions($node);
-        } elseif (str_contains($rawType, 'dropdown') || str_contains($rawType, 'select')) {
-            $mappedType = 'dropdown';
-            $options = $this->extractOptions($node);
-        } elseif (str_contains($rawType, 'paragraph') || $this->boolValue($node, ['multiline', 'MultiLine', 'isMultiline', 'IsMultiline'])) {
-            $mappedType = 'textarea';
-        } elseif (str_contains($rawType, 'text')) {
-            $mappedType = 'text';
-        }
-
-        $config = [];
-        $description = $this->stringValue($node, ['description', 'Description', 'instructions', 'Instructions', 'helpText', 'HelpText']);
-        if ($description !== '') {
-            $config['description'] = Str::limit($description, 1000, '');
-        }
-
-        if (in_array($mappedType, FormField::OPTION_BASED_TYPES, true)) {
-            $options = FormField::normalizeOptions($mappedType, $options);
-        } else {
-            $options = [];
-        }
-
-        return [
-            'skip' => $skip,
-            'reason' => $reason,
-            'label' => $label,
-            'name' => $name,
-            'type' => $mappedType,
-            'required' => $required,
-            'placeholder' => trim($placeholder),
-            'default' => trim($defaultValue),
-            'options' => $options,
-            'config' => $config,
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $node
-     * @return array<int, string>
-     */
-    private function extractOptions(array $node): array
-    {
-        $rawOptions = null;
-
-        foreach (['options', 'Options', 'choices', 'Choices', 'items', 'Items'] as $key) {
-            if (array_key_exists($key, $node) && is_array($node[$key])) {
-                $rawOptions = $node[$key];
-                break;
-            }
-        }
-
-        if (!is_array($rawOptions)) {
-            return [];
-        }
-
-        $options = [];
-        foreach ($rawOptions as $option) {
-            if (is_string($option) || is_numeric($option)) {
-                $options[] = trim((string) $option);
-                continue;
-            }
-
-            if (!is_array($option)) {
-                continue;
-            }
-
-            $value = $this->stringValue($option, ['label', 'Label', 'text', 'Text', 'name', 'Name', 'value', 'Value']);
-            if ($value !== '') {
-                $options[] = trim($value);
-            }
-        }
-
-        return array_values(array_filter(array_unique($options), fn ($value) => $value !== ''));
-    }
-
-    /**
-     * @param array<string, mixed> $values
-     * @param array<int, string> $keys
-     */
-    private function stringValue(array $values, array $keys): string
-    {
-        foreach ($keys as $key) {
-            if (!array_key_exists($key, $values)) {
-                continue;
-            }
-
-            $value = $values[$key];
-
-            if (is_scalar($value)) {
-                return trim((string) $value);
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * @param array<string, mixed> $values
-     * @param array<int, string> $keys
-     */
-    private function boolValue(array $values, array $keys): bool
-    {
-        foreach ($keys as $key) {
-            if (!array_key_exists($key, $values)) {
-                continue;
-            }
-
-            $value = $values[$key];
-
-            if (is_bool($value)) {
-                return $value;
-            }
-
-            if (is_int($value) || is_float($value)) {
-                return (bool) $value;
-            }
-
-            if (is_string($value)) {
-                $normalized = strtolower(trim($value));
-                if (in_array($normalized, ['1', 'true', 'yes'], true)) {
-                    return true;
-                }
-                if (in_array($normalized, ['0', 'false', 'no'], true)) {
-                    return false;
-                }
-            }
-        }
-
-        return false;
     }
 
     /**
