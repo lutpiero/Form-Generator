@@ -7,9 +7,14 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center py-3">
         <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> All Forms</h5>
-        <a href="{{ route('admin.forms.create') }}" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus"></i> Create Form
-        </a>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#cognitoImportModal">
+                <i class="bi bi-cloud-download"></i> Import from Cognito Forms
+            </button>
+            <a href="{{ route('admin.forms.create') }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus"></i> Create Form
+            </a>
+        </div>
     </div>
     <div class="card-body p-0">
         @if($forms->isEmpty())
@@ -85,4 +90,66 @@
         @endif
     </div>
 </div>
+
+<div class="modal fade" id="cognitoImportModal" tabindex="-1" aria-labelledby="cognitoImportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ route('admin.forms.import.cognito') }}" id="cognito-import-form">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cognitoImportModalLabel">Import from Cognito Forms</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label for="cognito-url" class="form-label">Paste your public Cognito Forms URL</label>
+                    <input
+                        type="url"
+                        class="form-control @error('cognito_url') is-invalid @enderror"
+                        id="cognito-url"
+                        name="cognito_url"
+                        value="{{ old('cognito_url') }}"
+                        placeholder="https://www.cognitoforms.com/YourOrg/YourFormName"
+                        required
+                    >
+                    @error('cognito_url')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="cognito-import-submit">
+                        <span class="spinner-border spinner-border-sm me-2 d-none" id="cognito-import-spinner" role="status" aria-hidden="true"></span>
+                        <span id="cognito-import-submit-text">Import</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var modalElement = document.getElementById('cognitoImportModal');
+    var form = document.getElementById('cognito-import-form');
+    var submitButton = document.getElementById('cognito-import-submit');
+    var spinner = document.getElementById('cognito-import-spinner');
+    var submitText = document.getElementById('cognito-import-submit-text');
+
+    if (!modalElement || !form || !submitButton || !spinner || !submitText) {
+        return;
+    }
+
+    form.addEventListener('submit', function () {
+        submitButton.disabled = true;
+        spinner.classList.remove('d-none');
+        submitText.textContent = 'Importing...';
+    });
+
+    @if($errors->has('cognito_url'))
+    bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    @endif
+});
+</script>
+@endpush
