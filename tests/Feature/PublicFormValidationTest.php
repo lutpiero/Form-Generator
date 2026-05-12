@@ -61,6 +61,50 @@ class PublicFormValidationTest extends TestCase
         $response->assertSee('js/form-validation.js', false);
     }
 
+    public function test_admin_can_store_radio_field_with_custom_answer_option(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Inspection Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $response = $this->actingAs($user)->post(route('admin.forms.fields.store', $form), [
+            'label' => 'Equipment',
+            'type' => 'radio',
+            'options' => "Fuse Box\nCable",
+            'allow_custom_answer' => '1',
+            'other_label' => 'Lainnya',
+        ]);
+
+        $response->assertRedirect(route('admin.forms.show', $form));
+
+        $field = $form->fields()->first();
+
+        $this->assertNotNull($field);
+        $this->assertSame(['Fuse Box', 'Cable', FormField::OTHER_OPTION_VALUE], $field->options_array);
+        $this->assertSame('Lainnya', $field->other_label);
+    }
+
+    public function test_public_form_renders_other_radio_input_and_validation_script(): void
+    {
+        $field = $this->createRadioField(['required' => true]);
+
+        $response = $this->get(route('forms.show', $field->form));
+
+        $response->assertOk();
+        $response->assertSee('data-form-validation', false);
+        $response->assertSee('novalidate', false);
+        $response->assertSee('value="__other__"', false);
+        $response->assertSee('name="preference_other"', false);
+        $response->assertSee('data-other-option', false);
+        $response->assertSee('Lainnya');
+        $response->assertSee('js/form-validation.js', false);
+    }
+
     public function test_checkbox_submission_requires_other_text_when_other_is_selected(): void
     {
         $field = $this->createCheckboxField(['required' => true]);
@@ -90,6 +134,64 @@ class PublicFormValidationTest extends TestCase
 
         $this->assertNotNull($submission);
         $this->assertSame(['Fuse Box', 'other:Custom breaker'], $submission->data['preferences']);
+    }
+
+    public function test_radio_submission_requires_other_text_when_other_is_selected(): void
+    {
+        $field = $this->createRadioField(['required' => true]);
+
+        $response = $this->from(route('forms.show', $field->form))->post(route('forms.submit', $field->form), [
+            'preference' => FormField::OTHER_OPTION_VALUE,
+            'preference_other' => '   ',
+        ]);
+
+        $response->assertRedirect(route('forms.show', $field->form));
+        $response->assertSessionHasErrors(['preference_other' => 'Please enter a value for Lainnya.']);
+        $this->assertDatabaseCount('form_submissions', 0);
+    }
+
+    public function test_radio_submission_stores_other_value(): void
+    {
+        $field = $this->createRadioField(['required' => true]);
+
+        $response = $this->post(route('forms.submit', $field->form), [
+            'preference' => FormField::OTHER_OPTION_VALUE,
+            'preference_other' => 'Custom breaker',
+        ]);
+
+        $response->assertRedirect(route('forms.success', $field->form));
+
+        $submission = FormSubmission::first();
+
+        $this->assertNotNull($submission);
+        $this->assertSame('other:Custom breaker', $submission->data['preference']);
+    }
+
+    public function test_radio_other_option_and_text_are_restored_after_validation_error(): void
+    {
+        $field = $this->createRadioField(['required' => false]);
+
+        $field->form->fields()->create([
+            'label' => 'Required name',
+            'name' => 'required_name',
+            'type' => 'text',
+            'required' => true,
+            'order' => 1,
+        ]);
+
+        $response = $this->from(route('forms.show', $field->form))->post(route('forms.submit', $field->form), [
+            'preference' => FormField::OTHER_OPTION_VALUE,
+            'preference_other' => 'Saved radio other',
+            'required_name' => '',
+        ]);
+
+        $response->assertRedirect(route('forms.show', $field->form));
+        $response->assertSessionHasErrors(['required_name']);
+
+        $response = $this->get(route('forms.show', $field->form));
+        $response->assertOk();
+        $response->assertSee('value="Saved radio other"', false);
+        $response->assertSeeInOrder(['id="preference_other_toggle"', 'checked'], false);
     }
 
     public function test_phone_field_rejects_invalid_format(): void
@@ -571,6 +673,27 @@ class PublicFormValidationTest extends TestCase
             'name' => 'preferences',
             'type' => 'checkbox_dropdown',
             'options' => json_encode(['Fuse Box', 'Cable', 'Switch']),
+            'required' => false,
+            'order' => 0,
+        ], $overrides));
+    }
+
+    private function createRadioField(array $overrides = []): FormField
+    {
+        $form = Form::create([
+            'name' => 'Radio Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        return $form->fields()->create(array_merge([
+            'label' => 'Preference',
+            'name' => 'preference',
+            'type' => 'radio',
+            'options' => json_encode(['Fuse Box', 'Cable', FormField::OTHER_OPTION_VALUE]),
+            'config' => ['other_label' => 'Lainnya'],
             'required' => false,
             'order' => 0,
         ], $overrides));

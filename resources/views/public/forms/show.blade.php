@@ -53,7 +53,9 @@
         @else
         @php
             $fieldError = $errors->first($field->name);
-            $otherFieldError = $field->type === 'checkbox' ? $errors->first($field->other_input_name) : null;
+            $otherFieldError = in_array($field->type, ['checkbox', 'radio'], true)
+                ? $errors->first($field->other_input_name)
+                : null;
             $visibilityRule = $field->visibility_rule;
             $controllerField = $visibilityRule ? $fieldsById->get($visibilityRule['field_id']) : null;
             $hasVisibilityRule = $visibilityRule && $controllerField;
@@ -95,17 +97,51 @@
                     </select>
                     @break
                 @case('radio')
-                    @foreach($field->options_array as $option)
+                    @php
+                        $oldRadioValue = old($field->name, $field->default_value);
+                        $oldRadioOtherValue = old($field->other_input_name);
+
+                        if (!$oldRadioOtherValue) {
+                            $oldRadioOtherValue = FormField::extractOtherResponse($oldRadioValue);
+                        }
+                    @endphp
+                    @foreach($field->selectable_options as $option)
                         <div class="form-check">
-                            <input class="form-check-input @error($field->name) is-invalid @enderror" type="radio"
+                            <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="radio"
                                    name="{{ $field->name }}" value="{{ $option }}"
-                                   id="{{ $field->name }}_{{ $loop->index }}"
-                                    {{ old($field->name) == $option ? 'checked' : '' }}
-                                   {{ $field->required ? 'required' : '' }}
-                                   {{ $fieldDisabledAttr }}>
+                                    id="{{ $field->name }}_{{ $loop->index }}"
+                                     {{ $oldRadioValue == $option ? 'checked' : '' }}
+                                    {{ $field->required ? 'required' : '' }}
+                                    {{ $fieldDisabledAttr }}>
                             <label class="form-check-label" for="{{ $field->name }}_{{ $loop->index }}">{{ $option }}</label>
                         </div>
                     @endforeach
+                    @if($field->hasOtherOption())
+                        @php
+                            $radioOtherChecked = $oldRadioValue == FormField::OTHER_OPTION_VALUE || FormField::isOtherResponse($oldRadioValue);
+                            $radioOtherFieldDisabledAttr = (!$isInitiallyVisible || !$radioOtherChecked) ? 'disabled' : '';
+                        @endphp
+                        <div class="form-check" data-other-option>
+                            <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="radio"
+                                   name="{{ $field->name }}" value="{{ FormField::OTHER_OPTION_VALUE }}"
+                                   id="{{ $field->name }}_other_toggle"
+                                   data-other-toggle
+                                   data-other-input-id="{{ $field->other_input_name }}"
+                                   {{ $radioOtherChecked ? 'checked' : '' }}
+                                   {{ $field->required ? 'required' : '' }}
+                                   {{ $fieldDisabledAttr }}>
+                            <label class="form-check-label" for="{{ $field->name }}_other_toggle">{{ $field->other_label }}</label>
+                            <input type="text"
+                                    name="{{ $field->other_input_name }}"
+                                   id="{{ $field->other_input_name }}"
+                                   value="{{ $oldRadioOtherValue }}"
+                                    class="form-control mt-2 @error($field->other_input_name) is-invalid @enderror"
+                                    placeholder="Please specify"
+                                    data-other-label="{{ $field->other_label }}"
+                                    data-other-input-field
+                                    {{ $radioOtherFieldDisabledAttr }}>
+                        </div>
+                    @endif
                     @break
                 @case('checkbox')
                     @php

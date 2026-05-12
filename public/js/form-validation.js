@@ -268,9 +268,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (type === 'radio') {
                 const checkedRadio = group.querySelector('input[type="radio"]:checked');
+                const otherToggle = group.querySelector('[data-other-toggle]');
+                const otherInput = otherToggle ? getOtherInput(otherToggle) : null;
+                const otherLabel = otherInput?.dataset.otherLabel || 'Other';
 
                 if (required && !checkedRadio) {
                     setGroupValidity(group, false, getRequiredMessage(label));
+                    return false;
+                }
+
+                if (otherToggle && otherToggle.checked && otherInput && otherInput.value.trim() === '') {
+                    setGroupValidity(group, false, `Please enter a value for ${otherLabel}.`);
                     return false;
                 }
 
@@ -348,6 +356,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (changedGroup?.dataset.fieldName) {
+                if (changedGroup.dataset.fieldType === 'radio') {
+                    const otherToggle = changedGroup.querySelector('[data-other-toggle]');
+                    if (otherToggle) {
+                        updateOtherInputState(otherToggle, otherToggle.checked);
+                    }
+                }
                 updateCheckboxDropdownSummary(changedGroup);
                 refreshDependentVisibility(changedGroup.dataset.fieldName);
             }

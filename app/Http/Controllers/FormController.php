@@ -95,6 +95,19 @@ class FormController extends Controller
                     if (!empty($field->options_array)) {
                         $fieldRules[] = Rule::in($field->options_array);
                     }
+
+                    if ($field->type === 'radio' && $field->hasOtherOption()) {
+                        $otherFieldName = $field->other_input_name;
+                        $otherSelected = (string) $request->input($field->name, '') === FormField::OTHER_OPTION_VALUE;
+
+                        $rules[$otherFieldName] = [
+                            $otherSelected ? 'required' : 'nullable',
+                            'string',
+                            'max:255',
+                        ];
+                        $attributes[$otherFieldName] = $field->other_label;
+                        $messages["{$otherFieldName}.required"] = "Please enter a value for {$field->other_label}.";
+                    }
                     break;
                 case 'checkbox':
                 case 'checkbox_dropdown':
@@ -178,6 +191,11 @@ class FormController extends Controller
                         $value
                     );
                 }
+            }
+
+            if ($field->type === 'radio' && $field->hasOtherOption() && $value === FormField::OTHER_OPTION_VALUE) {
+                $otherValue = trim((string) ($validated[$field->other_input_name] ?? ''));
+                $value = FormField::formatOtherResponse($otherValue);
             }
 
             $data[$field->name] = $value;
