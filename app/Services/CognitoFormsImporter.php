@@ -201,7 +201,9 @@ class CognitoFormsImporter
         $decoded = preg_replace_callback(
             '/\\\\u([0-9a-fA-F]{4})/',
             static function (array $m): string {
-                return mb_chr(hexdec($m[1]), 'UTF-8');
+                $char = mb_chr(hexdec($m[1]), 'UTF-8');
+                // mb_chr returns false for invalid codepoints; fall back to the original sequence
+                return $char !== false ? $char : $m[0];
             },
             $raw
         );
@@ -312,11 +314,9 @@ class CognitoFormsImporter
      */
     private function extractSectionLabel(string $sectionName, string $js): string
     {
-        if (preg_match(
-            '/\b' . preg_quote($sectionName, '/') . '\s*:\s*\{[^}]*label\s*:\s*"([^"]+)"/s',
-            $js,
-            $m
-        )) {
+        $block = $this->extractDefinitionBlock($sectionName, $js);
+
+        if ($block !== null && preg_match('/\blabel\s*:\s*"([^"]+)"/', $block, $m)) {
             return $m[1];
         }
 
@@ -329,11 +329,9 @@ class CognitoFormsImporter
      */
     private function extractFieldLabel(string $fieldName, string $js): string
     {
-        if (preg_match(
-            '/\b' . preg_quote($fieldName, '/') . '\s*:\s*\{[^}]*label\s*:\s*"([^"]+)"/s',
-            $js,
-            $m
-        )) {
+        $block = $this->extractDefinitionBlock($fieldName, $js);
+
+        if ($block !== null && preg_match('/\blabel\s*:\s*"([^"]+)"/', $block, $m)) {
             return $m[1];
         }
 
@@ -346,10 +344,35 @@ class CognitoFormsImporter
      */
     private function extractFieldRequired(string $fieldName, string $js): bool
     {
-        return (bool) preg_match(
-            '/\b' . preg_quote($fieldName, '/') . '\s*:\s*\{[^}]*required\s*:/s',
-            $js
-        );
+        $block = $this->extractDefinitionBlock($fieldName, $js);
+
+        return $block !== null && (bool) preg_match('/\brequired\s*:/', $block);
+    }
+
+    /**
+     * Extract the JS object body (including one level of nested braces) for a named key.
+     *
+     * Handles definitions like:
+     *   fieldName: {
+     *       label: "...",
+     *       required: { message: "..." },   <- nested brace is handled
+     *       type: '...'
+     *   }
+     *
+     * Returns the full matched block (including outer braces), or null if not found.
+     */
+    private function extractDefinitionBlock(string $name, string $js): ?string
+    {
+        // Match: name: { <content supporting one level of nested {}>  }
+        if (preg_match(
+            '/\b' . preg_quote($name, '/') . '\s*:\s*(\{(?:[^{}]|\{[^{}]*\})*\})/s',
+            $js,
+            $m
+        )) {
+            return $m[1];
+        }
+
+        return null;
     }
 
     /**
