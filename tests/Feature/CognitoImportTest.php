@@ -140,8 +140,7 @@ JS, 200),
         $response
             ->assertRedirect(route('admin.forms.index'))
             ->assertSessionHas('error', function (string $message) {
-                return str_contains($message, 'Could not extract a Cognito form schema from the provided URL')
-                    && str_contains($message, 'https://www.cognitoforms.com/YourOrg/YourFormName');
+                return str_contains($message, 'Could not find the Cognito Forms script tag');
             });
 
         $this->assertSame(0, Form::count());
