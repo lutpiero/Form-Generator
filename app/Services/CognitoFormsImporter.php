@@ -13,18 +13,17 @@ class CognitoFormsImporter
 {
     private const EXCLUDED_NODE_TYPES = ['form', 'page', 'layout', 'rule', 'validation', 'style'];
 
+    private const BROWSER_HEADERS = [
+        'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer' => 'https://www.cognitoforms.com/',
+    ];
+
     /**
      * @return array{form: Form, imported: int, skipped: array<int, string>}
      */
     public function import(string $url): array
     {
-        $response = Http::timeout(20)->get($url);
-
-        if (!$response->successful()) {
-            throw new RuntimeException('Unable to fetch the Cognito Forms page. Please verify the URL is public and accessible.');
-        }
-
-        $schema = $this->extractSchema($response->body());
+        $schema = $this->fetchSchema($url);
         $sourceFields = $this->extractFieldNodes($schema);
 
         if ($sourceFields === []) {
@@ -82,9 +81,92 @@ class CognitoFormsImporter
     }
 
     /**
+     * Try multiple strategies to retrieve the form schema from a public Cognito Forms URL.
+     *
+     * Strategy 1 – Direct JSON API endpoints (same calls the SPA JavaScript makes).
+     * Strategy 2 – Original URL with Accept: application/json (content negotiation).
+     * Strategy 3 – Fetch the HTML page and extract any embedded JSON schema.
+     *
      * @return array<string, mixed>
      */
-    private function extractSchema(string $html): array
+    private function fetchSchema(string $url): array
+    {
+        $path = parse_url($url, PHP_URL_PATH) ?? '';
+        $segments = array_values(array_filter(explode('/', trim($path, '/'))));
+        $orgSlug = $segments[0] ?? null;
+        $formSlug = $segments[1] ?? null;
+
+        // Strategy 1 – Try known internal API endpoint patterns
+        if ($orgSlug !== null && $formSlug !== null) {
+            $apiEndpoints = [
+                "https://www.cognitoforms.com/api/forms/{$orgSlug}/{$formSlug}",
+                "https://api.cognitoforms.com/forms/{$orgSlug}/{$formSlug}",
+                "https://www.cognitoforms.com/api/{$orgSlug}/{$formSlug}",
+            ];
+
+            foreach ($apiEndpoints as $endpoint) {
+                $response = Http::timeout(20)
+                    ->withHeaders(array_merge(self::BROWSER_HEADERS, [
+                        'Accept' => 'application/json',
+                        'X-Requested-With' => 'XMLHttpRequest',
+                    ]))
+                    ->get($endpoint);
+
+                if ($response->successful()) {
+                    $data = $response->json();
+
+                    if (is_array($data) && $data !== []) {
+                        if ($this->extractFieldNodes($data) !== []) {
+                            return $data;
+                        }
+                    }
+                }
+            }
+
+            // Strategy 2 – original URL with JSON content negotiation
+            $jsonResponse = Http::timeout(20)
+                ->withHeaders(array_merge(self::BROWSER_HEADERS, [
+                    'Accept' => 'application/json',
+                    'X-Requested-With' => 'XMLHttpRequest',
+                ]))
+                ->get($url);
+
+            if ($jsonResponse->successful()) {
+                $data = $jsonResponse->json();
+
+                if (is_array($data) && $data !== [] && $this->extractFieldNodes($data) !== []) {
+                    return $data;
+                }
+            }
+        }
+
+        // Strategy 3 – Fetch the HTML page and look for embedded JSON schema
+        $htmlResponse = Http::timeout(20)
+            ->withHeaders(array_merge(self::BROWSER_HEADERS, [
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            ]))
+            ->get($url);
+
+        if (!$htmlResponse->successful()) {
+            throw new RuntimeException('Unable to fetch the Cognito Forms page. Please verify the URL is public and accessible.');
+        }
+
+        $schema = $this->extractSchema($htmlResponse->body());
+
+        if ($schema === null) {
+            throw new RuntimeException(
+                'Could not load the Cognito Forms schema. Please ensure the form is public and the URL is correct. '
+                . 'Example format: https://www.cognitoforms.com/YourOrg/YourFormName'
+            );
+        }
+
+        return $schema;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function extractSchema(string $html): ?array
     {
         $candidates = [];
 
@@ -130,7 +212,7 @@ class CognitoFormsImporter
         }
 
         if (!is_array($bestCandidate) || $bestScore <= 0) {
-            throw new RuntimeException('Could not extract a Cognito form schema from the provided URL.');
+            return null;
         }
 
         return $bestCandidate;
