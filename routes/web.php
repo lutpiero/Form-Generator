@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FormController as AdminFormController;
+use App\Http\Controllers\Admin\CognitoImportController;
 use App\Http\Controllers\Admin\FormFieldController;
 use App\Http\Controllers\Admin\SubmissionController;
 use App\Http\Controllers\Admin\UserController;
@@ -32,6 +33,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
 
     // Forms
     Route::resource('forms', AdminFormController::class);
+    Route::post('forms/import/cognito', [CognitoImportController::class, 'import'])->name('forms.import.cognito');
 
     // Form fields
     Route::get('forms/{form}/fields/create', [FormFieldController::class, 'create'])->name('forms.fields.create');
