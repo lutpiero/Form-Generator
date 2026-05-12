@@ -14,6 +14,10 @@ class CognitoFormsImporter
 {
     private const EXCLUDED_NODE_TYPES = ['form', 'page', 'layout', 'rule', 'validation', 'style'];
 
+    /** Minimum and maximum character length for a valid Cognito Forms internal form ID. */
+    private const FORM_ID_MIN_LENGTH = 10;
+    private const FORM_ID_MAX_LENGTH = 50;
+
     private const BROWSER_HEADERS = [
         'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Referer' => 'https://www.cognitoforms.com/',
@@ -113,6 +117,15 @@ class CognitoFormsImporter
 
         Log::debug('CognitoFormsImporter: extracted form ID', ['formId' => $formId, 'url' => $url]);
 
+        // Guard: validate the ID format before interpolating it into the API URL
+        if (!$this->isValidFormId($formId)) {
+            throw new RuntimeException(
+                'Could not extract a Cognito form schema from the provided URL. '
+                . 'Please ensure the form is public and the URL is correct. '
+                . 'Example format: https://www.cognitoforms.com/YourOrg/YourFormName'
+            );
+        }
+
         // Step 2 — Fetch the form definition from the internal API endpoint
         $formDefResponse = Http::timeout(20)
             ->withHeaders(array_merge(self::BROWSER_HEADERS, [
@@ -171,11 +184,14 @@ class CognitoFormsImporter
 
     /**
      * Validate that the extracted form ID conforms to Cognito Forms' expected format:
-     * alphanumeric + hyphens/underscores, between 10 and 50 characters.
+     * alphanumeric + hyphens/underscores, between FORM_ID_MIN_LENGTH and FORM_ID_MAX_LENGTH characters.
      */
     private function isValidFormId(string $id): bool
     {
-        return (bool) preg_match('/^[A-Za-z0-9_-]{10,50}$/', $id);
+        $len = strlen($id);
+        return $len >= self::FORM_ID_MIN_LENGTH
+            && $len <= self::FORM_ID_MAX_LENGTH
+            && (bool) preg_match('/^[A-Za-z0-9_-]+$/', $id);
     }
 
     /**
