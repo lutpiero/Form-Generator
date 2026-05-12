@@ -149,7 +149,7 @@ class FormFieldController extends Controller
             fn ($option) => $option !== FormField::OTHER_OPTION_VALUE
         ));
 
-        if ($type === 'checkbox' && $request->boolean('allow_custom_answer', false)) {
+        if (in_array($type, ['checkbox', 'radio'], true) && $request->boolean('allow_custom_answer', false)) {
             $optionsArray[] = FormField::OTHER_OPTION_VALUE;
         }
 
@@ -164,7 +164,7 @@ class FormFieldController extends Controller
 
         $config = [];
 
-        if ($type === 'checkbox' && $request->boolean('allow_custom_answer', false)) {
+        if (in_array($type, ['checkbox', 'radio'], true) && $request->boolean('allow_custom_answer', false)) {
             $config['other_label'] = FormField::normalizeOtherLabel($request->input('other_label'));
         }
 
@@ -196,7 +196,8 @@ class FormFieldController extends Controller
             $key = $baseKey !== '' ? $baseKey : 'column_'.($index + 1);
             $key = $this->ensureUniqueColumnKey($key, $columns);
 
-            $allowCustomAnswer = $columnType === 'checkbox' && !empty($column['allow_custom_answer']);
+            $allowCustomAnswer = in_array($columnType, ['checkbox', 'radio', 'dropdown'], true)
+                && !empty($column['allow_custom_answer']);
 
             $columns[] = [
                 'key' => $key,

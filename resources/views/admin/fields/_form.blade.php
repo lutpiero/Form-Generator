@@ -48,7 +48,7 @@
     <textarea name="options" class="form-control" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3">{{ old('options', isset($field) ? implode("\n", $field->selectable_options) : '') }}</textarea>
 </div>
 
-<div class="mb-3" id="customAnswerGroup" style="{{ old('type', $field->type ?? 'text') === 'checkbox' ? '' : 'display:none' }}">
+<div class="mb-3" id="customAnswerGroup" style="{{ in_array(old('type', $field->type ?? 'text'), ['checkbox', 'radio'], true) ? '' : 'display:none' }}">
     <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" name="allow_custom_answer" id="allow_custom_answer" value="1"
             {{ $customAnswerEnabled ? 'checked' : '' }}>
@@ -61,7 +61,7 @@
                placeholder="e.g. Other, Lainnya, Please specify...">
         @error('other_label')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
-    <div class="form-text">Adds a customizable checkbox option with a free-text answer on the public form.</div>
+    <div class="form-text">Adds a customizable option with a free-text answer on the public form.</div>
 </div>
 
 <div id="tableConfigGroup" class="border rounded p-3 bg-light-subtle mb-3" style="{{ $selectedType === 'table' ? '' : 'display:none' }}">
@@ -521,15 +521,15 @@
 
     function updateFieldVisibility(type) {
         var showOptions = ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown'].includes(type);
-        var isCheckbox = type === 'checkbox';
+        var supportsCustomAnswer = ['checkbox', 'radio'].includes(type);
         var isSection = type === 'section';
         var isTable = type === 'table';
         var isLabel = type === 'label';
 
         optionsGroup.style.display = showOptions ? '' : 'none';
-        customAnswerGroup.style.display = isCheckbox ? '' : 'none';
+        customAnswerGroup.style.display = supportsCustomAnswer ? '' : 'none';
         if (customAnswerLabelGroup) {
-            customAnswerLabelGroup.style.display = isCheckbox && allowCustomAnswer && allowCustomAnswer.checked ? '' : 'none';
+            customAnswerLabelGroup.style.display = supportsCustomAnswer && allowCustomAnswer && allowCustomAnswer.checked ? '' : 'none';
         }
         inputOnlyFields.style.display = (isSection || isTable || isLabel) ? 'none' : '';
         visibilityConfigGroup.style.display = (isSection || isTable || isLabel) ? 'none' : '';
