@@ -196,7 +196,7 @@ class FormFieldController extends Controller
             $key = $baseKey !== '' ? $baseKey : 'column_'.($index + 1);
             $key = $this->ensureUniqueColumnKey($key, $columns);
 
-            $allowCustomAnswer = in_array($columnType, ['checkbox', 'radio', 'dropdown'], true)
+            $allowCustomAnswer = in_array($columnType, ['checkbox', 'radio'], true)
                 && !empty($column['allow_custom_answer']);
 
             $columns[] = [
