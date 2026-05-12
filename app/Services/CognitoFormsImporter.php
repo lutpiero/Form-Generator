@@ -209,7 +209,7 @@ class CognitoFormsImporter
             $type === 'date'                                   => 'date',
             $type === 'time'                                   => 'time',
             $type === 'yesno'                                  => 'checkbox',
-            $type === 'choice'  && $subtype === 'dropdown'     => 'select',
+            $type === 'choice'  && $subtype === 'dropdown'     => 'dropdown',
             $type === 'choice'                                 => 'radio',
             $type === 'file'                                   => 'file',
             default                                            => 'text',
