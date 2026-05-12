@@ -155,17 +155,27 @@ class CognitoFormsImporter
             '/"formId"\s*:\s*"([A-Za-z0-9_-]+)"/',
             // JSON property "FormId" (PascalCase)
             '/"FormId"\s*:\s*"([A-Za-z0-9_-]+)"/',
-            // Any long base64-like ID value (≥ 20 chars)
-            '/"id"\s*:\s*"([A-Za-z0-9_-]{20,})"/',
         ];
 
         foreach ($patterns as $pattern) {
             if (preg_match($pattern, $html, $matches)) {
-                return $matches[1];
+                $id = $matches[1];
+                if ($this->isValidFormId($id)) {
+                    return $id;
+                }
             }
         }
 
         return null;
+    }
+
+    /**
+     * Validate that the extracted form ID conforms to Cognito Forms' expected format:
+     * alphanumeric + hyphens/underscores, between 10 and 50 characters.
+     */
+    private function isValidFormId(string $id): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9_-]{10,50}$/', $id);
     }
 
     /**
