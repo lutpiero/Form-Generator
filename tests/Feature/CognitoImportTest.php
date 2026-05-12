@@ -17,6 +17,13 @@ class CognitoImportTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Http::fake([
+            // API endpoint attempts return 404 — fall through to HTML scraping
+            'https://www.cognitoforms.com/api/forms/Acme/CustomerIntake' => Http::response('', 404),
+            'https://api.cognitoforms.com/forms/Acme/CustomerIntake' => Http::response('', 404),
+            'https://www.cognitoforms.com/api/Acme/CustomerIntake' => Http::response('', 404),
+            // The original URL is tried twice: once with JSON headers (returns HTML → no valid JSON)
+            // and once with HTML headers (returns the schema-containing HTML page).
+            // Both attempts match this same fake entry.
             'https://www.cognitoforms.com/Acme/CustomerIntake' => Http::response(<<<'HTML'
                 <html>
                     <head></head>
@@ -98,6 +105,9 @@ class CognitoImportTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Http::fake([
+            'https://www.cognitoforms.com/api/forms/Acme/UnavailableForm' => Http::response('', 404),
+            'https://api.cognitoforms.com/forms/Acme/UnavailableForm' => Http::response('', 404),
+            'https://www.cognitoforms.com/api/Acme/UnavailableForm' => Http::response('', 404),
             'https://www.cognitoforms.com/Acme/UnavailableForm' => Http::response('<html><body>No schema here.</body></html>', 200),
         ]);
 
@@ -109,7 +119,10 @@ class CognitoImportTest extends TestCase
 
         $response
             ->assertRedirect(route('admin.forms.index'))
-            ->assertSessionHas('error', 'Could not extract a Cognito form schema from the provided URL.');
+            ->assertSessionHas('error', function (string $message) {
+                return str_contains($message, 'Could not load the Cognito Forms schema')
+                    && str_contains($message, 'https://www.cognitoforms.com/YourOrg/YourFormName');
+            });
 
         $this->assertSame(0, Form::count());
     }
