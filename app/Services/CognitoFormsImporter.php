@@ -11,6 +11,8 @@ use RuntimeException;
 
 class CognitoFormsImporter
 {
+    private const EXCLUDED_NODE_TYPES = ['form', 'page', 'layout', 'rule', 'validation', 'style'];
+
     /**
      * @return array{form: Form, imported: int, skipped: array<int, string>}
      */
@@ -127,7 +129,7 @@ class CognitoFormsImporter
             }
         }
 
-        if (!is_array($bestCandidate) || $bestScore < 0) {
+        if (!is_array($bestCandidate) || $bestScore <= 0) {
             throw new RuntimeException('Could not extract a Cognito form schema from the provided URL.');
         }
 
@@ -241,7 +243,7 @@ class CognitoFormsImporter
             return false;
         }
 
-        if (in_array($type, ['form', 'page', 'layout', 'rule', 'validation', 'style'], true)) {
+        if (in_array($type, self::EXCLUDED_NODE_TYPES, true)) {
             return false;
         }
 
@@ -517,8 +519,9 @@ class CognitoFormsImporter
     private function sanitizeName(string $name): string
     {
         $value = strtolower(trim($name));
-        $value = preg_replace('/[^a-z0-9]+/', '_', $value);
-        $value = trim((string) $value, '_');
+        $replaced = preg_replace('/[^a-z0-9]+/', '_', $value);
+        $value = is_string($replaced) ? $replaced : '';
+        $value = trim($value, '_');
 
         return $value !== '' ? $value : 'field';
     }

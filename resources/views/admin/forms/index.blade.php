@@ -148,7 +148,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     @if($errors->has('cognito_url'))
-    bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    }
     @endif
 });
 </script>

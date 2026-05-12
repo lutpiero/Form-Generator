@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\CognitoFormsImporter;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -17,12 +18,7 @@ class CognitoImportController extends Controller
             'cognito_url' => [
                 'required',
                 'url',
-                function (string $attribute, mixed $value, $fail): void {
-                    if (!is_string($value)) {
-                        $fail('Please provide a valid Cognito Forms URL.');
-                        return;
-                    }
-
+                function (string $attribute, string $value, Closure $fail): void {
                     $parts = parse_url($value);
                     $host = strtolower((string) ($parts['host'] ?? ''));
                     $scheme = strtolower((string) ($parts['scheme'] ?? ''));
