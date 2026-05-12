@@ -17,14 +17,14 @@ class CognitoImportTest extends TestCase
         $admin = User::factory()->create(['role' => 'admin']);
 
         Http::fake([
-            // Step 1 — HTML page returns a shell that embeds the svc/load-form URL (with form ID)
+            // Step 1 — HTML page with seamless.js script tag (actual Cognito Forms format)
             'https://www.cognitoforms.com/Acme/CustomerIntake' => Http::response(<<<'HTML'
                 <html>
                     <head>
-                        <script>
-                            window.__CF_INIT__ = {
-                                "apiBase": "https://www.cognitoforms.com/svc/load-form/form-def/TestFormId12345678901/1"
-                            };
+                        <script data-form="1"
+                                data-key="TestFormId12345678901"
+                                data-context="public"
+                                src="/f/seamless.js?cachehash=abc123">
                         </script>
                     </head>
                     <body><div id="app"></div></body>

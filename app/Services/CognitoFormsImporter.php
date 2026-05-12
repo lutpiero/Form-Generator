@@ -105,9 +105,9 @@ class CognitoFormsImporter
             throw new RuntimeException('Unable to fetch the Cognito Forms page. Please verify the URL is public and accessible.');
         }
 
-        $formId = $this->extractFormId($htmlResponse->body());
+        $formIdData = $this->extractFormIdAndNumber($htmlResponse->body());
 
-        if ($formId === null) {
+        if ($formIdData === null) {
             throw new RuntimeException(
                 'Could not extract a Cognito form schema from the provided URL. '
                 . 'Please ensure the form is public and the URL is correct. '
@@ -115,16 +115,9 @@ class CognitoFormsImporter
             );
         }
 
-        Log::debug('CognitoFormsImporter: extracted form ID', ['formId' => $formId, 'url' => $url]);
+        [$formKey, $formNumber] = $formIdData;
 
-        // Guard: validate the ID format before interpolating it into the API URL
-        if (!$this->isValidFormId($formId)) {
-            throw new RuntimeException(
-                'Could not extract a Cognito form schema from the provided URL. '
-                . 'Please ensure the form is public and the URL is correct. '
-                . 'Example format: https://www.cognitoforms.com/YourOrg/YourFormName'
-            );
-        }
+        Log::debug('CognitoFormsImporter: extracted form ID', ['formKey' => $formKey, 'formNumber' => $formNumber, 'url' => $url]);
 
         // Step 2 — Fetch the form definition from the internal API endpoint
         $formDefResponse = Http::timeout(20)
@@ -132,7 +125,7 @@ class CognitoFormsImporter
                 'Accept' => 'application/json',
                 'Referer' => $url,
             ]))
-            ->get("https://www.cognitoforms.com/svc/load-form/form-def/{$formId}/1");
+            ->get("https://www.cognitoforms.com/svc/load-form/form-def/{$formKey}/{$formNumber}");
 
         if (!$formDefResponse->successful()) {
             throw new RuntimeException(
@@ -142,7 +135,7 @@ class CognitoFormsImporter
 
         $schema = $formDefResponse->json();
 
-        Log::debug('CognitoFormsImporter: received form definition', ['formId' => $formId, 'keys' => is_array($schema) ? array_keys($schema) : null]);
+        Log::debug('CognitoFormsImporter: received form definition', ['formKey' => $formKey, 'formNumber' => $formNumber, 'keys' => is_array($schema) ? array_keys($schema) : null]);
 
         if (!is_array($schema) || $schema === []) {
             throw new RuntimeException(
@@ -154,28 +147,41 @@ class CognitoFormsImporter
     }
 
     /**
-     * Extract the Cognito Forms internal form ID from the raw HTML of the public form page.
-     * Tries several regex patterns in order of specificity.
+     * Extract the Cognito Forms internal form key and form number from the raw HTML of the public form page.
+     * Tries the seamless.js script-tag attributes first, then falls back to other patterns.
+     *
+     * @return array{0: string, 1: string}|null [formKey, formNumber]
      */
-    private function extractFormId(string $html): ?string
+    private function extractFormIdAndNumber(string $html): ?array
     {
-        $patterns = [
-            // Full internal endpoint URL embedded in the HTML/JS
-            '/load-form\/form-def\/([A-Za-z0-9_-]+)\/\d+/',
-            // Partial form-def path
-            '/form-def\/([A-Za-z0-9_-]+)/',
-            // JSON property "formId"
-            '/"formId"\s*:\s*"([A-Za-z0-9_-]+)"/',
-            // JSON property "FormId" (PascalCase)
-            '/"FormId"\s*:\s*"([A-Za-z0-9_-]+)"/',
-        ];
+        // Primary: seamless.js script tag – data-key before data-form
+        if (preg_match('/<script[^>]+data-key="([A-Za-z0-9_-]+)"[^>]+data-form="(\d+)"/', $html, $m)
+            && $this->isValidFormId($m[1])) {
+            return [$m[1], $m[2]];
+        }
 
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $html, $matches)) {
-                $id = $matches[1];
-                if ($this->isValidFormId($id)) {
-                    return $id;
-                }
+        // Primary: seamless.js script tag – data-form before data-key
+        if (preg_match('/<script[^>]+data-form="(\d+)"[^>]+data-key="([A-Za-z0-9_-]+)"/', $html, $m)
+            && $this->isValidFormId($m[2])) {
+            return [$m[2], $m[1]];
+        }
+
+        // Fallback: full internal endpoint URL embedded in the HTML/JS (includes form number)
+        if (preg_match('/load-form\/form-def\/([A-Za-z0-9_-]+)\/(\d+)/', $html, $m)
+            && $this->isValidFormId($m[1])) {
+            return [$m[1], $m[2]];
+        }
+
+        // Fallback: partial form-def path (assume form number 1)
+        if (preg_match('/form-def\/([A-Za-z0-9_-]+)/', $html, $m)
+            && $this->isValidFormId($m[1])) {
+            return [$m[1], '1'];
+        }
+
+        // Fallback: JSON property "formId" or "FormId" (assume form number 1)
+        foreach (['"formId"\s*:\s*"([A-Za-z0-9_-]+)"', '"FormId"\s*:\s*"([A-Za-z0-9_-]+)"'] as $pattern) {
+            if (preg_match("/{$pattern}/", $html, $m) && $this->isValidFormId($m[1])) {
+                return [$m[1], '1'];
             }
         }
 
