@@ -21,8 +21,9 @@ class CognitoImportTest extends TestCase
             'https://www.cognitoforms.com/api/forms/Acme/CustomerIntake' => Http::response('', 404),
             'https://api.cognitoforms.com/forms/Acme/CustomerIntake' => Http::response('', 404),
             'https://www.cognitoforms.com/api/Acme/CustomerIntake' => Http::response('', 404),
-            // JSON content-negotiation attempt on the original URL also returns no JSON
-            // The wildcard below also handles this implicitly, but the HTML URL is matched separately
+            // The original URL is tried twice: once with JSON headers (returns HTML → no valid JSON)
+            // and once with HTML headers (returns the schema-containing HTML page).
+            // Both attempts match this same fake entry.
             'https://www.cognitoforms.com/Acme/CustomerIntake' => Http::response(<<<'HTML'
                 <html>
                     <head></head>
