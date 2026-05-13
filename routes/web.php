@@ -33,7 +33,7 @@ Route::prefix('admin')->name('admin.')->middleware('auth')->group(function () {
 
     // Forms
     Route::resource('forms', AdminFormController::class);
-    Route::post('forms/import/cognito', [CognitoImportController::class, 'import'])->name('forms.import.cognito');
+    Route::post('forms/import/cognito-json', [CognitoImportController::class, 'importFromJson'])->name('forms.import.cognito');
 
     // Form fields
     Route::get('forms/{form}/fields/create', [FormFieldController::class, 'create'])->name('forms.fields.create');

@@ -92,7 +92,7 @@
 </div>
 
 <div class="modal fade" id="cognitoImportModal" tabindex="-1" aria-labelledby="cognitoImportModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form method="POST" action="{{ route('admin.forms.import.cognito') }}" id="cognito-import-form">
                 @csrf
@@ -101,17 +101,16 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <label for="cognito-url" class="form-label">Paste your public Cognito Forms URL</label>
-                    <input
-                        type="url"
-                        class="form-control @error('cognito_url') is-invalid @enderror"
-                        id="cognito-url"
-                        name="cognito_url"
-                        value="{{ old('cognito_url') }}"
-                        placeholder="https://www.cognitoforms.com/YourOrg/YourFormName"
+                    <p class="text-muted">Paste your Cognito Forms JSON definition below.</p>
+                    <textarea
+                        name="json_data"
+                        class="form-control font-monospace @error('json_data') is-invalid @enderror"
+                        id="cognito-json"
+                        rows="15"
+                        placeholder='{ "https://www.cognitoforms.com/...": { "sections": { ... } } }'
                         required
-                    >
-                    @error('cognito_url')
+                    >{{ old('json_data') }}</textarea>
+                    @error('json_data')
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
@@ -119,7 +118,7 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="cognito-import-submit">
                         <span class="spinner-border spinner-border-sm me-2 d-none" id="cognito-import-spinner" role="status" aria-hidden="true"></span>
-                        <span id="cognito-import-submit-text">Import</span>
+                        <span id="cognito-import-submit-text">Import Form</span>
                     </button>
                 </div>
             </form>
@@ -147,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
         submitText.textContent = 'Importing...';
     });
 
-    @if($errors->has('cognito_url'))
+    @if($errors->has('json_data'))
     if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
         bootstrap.Modal.getOrCreateInstance(modalElement).show();
     }

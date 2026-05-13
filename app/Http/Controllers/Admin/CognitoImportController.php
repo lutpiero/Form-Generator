@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Form;
 use App\Services\CognitoFormsImporter;
-use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,26 +12,14 @@ use Illuminate\Support\Str;
 
 class CognitoImportController extends Controller
 {
-    public function import(Request $request, CognitoFormsImporter $importer): RedirectResponse
+    public function importFromJson(Request $request, CognitoFormsImporter $importer): RedirectResponse
     {
-        $validated = $request->validate([
-            'cognito_url' => [
-                'required',
-                'url',
-                function (string $attribute, string $value, Closure $fail): void {
-                    $parts = parse_url($value);
-                    $host = strtolower((string) ($parts['host'] ?? ''));
-                    $scheme = strtolower((string) ($parts['scheme'] ?? ''));
-
-                    if (!in_array($scheme, ['http', 'https'], true) || ($host !== 'cognitoforms.com' && !Str::endsWith($host, '.cognitoforms.com'))) {
-                        $fail('The URL must be a public cognitoforms.com URL.');
-                    }
-                },
-            ],
+        $request->validate([
+            'json_data' => 'required|string',
         ]);
 
         try {
-            $result = $importer->import($validated['cognito_url']);
+            $result = $importer->importFromJson($request->input('json_data'));
 
             $form = DB::transaction(function () use ($result): Form {
                 $form = Form::create([
@@ -70,10 +57,11 @@ class CognitoImportController extends Controller
                 return $form;
             });
 
-            $imported = count($result['fields']);
+            $fieldCount   = count(array_filter($result['fields'], fn ($f) => !$f['is_section']));
+            $sectionCount = $result['sections'];
 
             return redirect()->route('admin.forms.show', $form)
-                ->with('success', "Imported {$imported} field(s) from Cognito Forms.");
+                ->with('success', "Form imported successfully with {$fieldCount} fields across {$sectionCount} sections.");
         } catch (\Exception $exception) {
             return back()
                 ->withInput()
