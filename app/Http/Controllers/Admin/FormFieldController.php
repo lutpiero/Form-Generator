@@ -181,11 +181,11 @@ class FormFieldController extends Controller
             $maxValue = $request->input('config.max_value');
 
             if ($this->hasConfigInput($minValue)) {
-                $config['min_value'] = 0 + $minValue;
+                $config['min_value'] = (float) $minValue;
             }
 
             if ($this->hasConfigInput($maxValue)) {
-                $config['max_value'] = 0 + $maxValue;
+                $config['max_value'] = (float) $maxValue;
             }
         }
 

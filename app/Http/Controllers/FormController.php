@@ -491,7 +491,7 @@ class FormController extends Controller
             return null;
         }
 
-        return $value + 0;
+        return (float) $value;
     }
 
     protected function integerFieldConfig(FormField $field, string $key): ?int
@@ -515,7 +515,7 @@ class FormController extends Controller
         }
 
         return [
-            function (string $attribute, mixed $value, $fail) use ($field, $minLength, $maxLength) {
+            function (string $attribute, mixed $value, \Closure $fail) use ($field, $minLength, $maxLength) {
                 if ($value === null || $value === '') {
                     return;
                 }

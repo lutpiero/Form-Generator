@@ -519,8 +519,8 @@ class PublicFormValidationTest extends TestCase
             'required' => true,
             'order' => 0,
             'config' => [
-                'min_value' => 10,
-                'max_value' => 999,
+                'min_value' => 0,
+                'max_value' => 99,
                 'min_length' => 2,
                 'max_length' => 2,
             ],
@@ -551,7 +551,7 @@ class PublicFormValidationTest extends TestCase
         ]);
 
         $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
-            'score' => '9',
+            'score' => '-1',
             'nickname' => 'ab',
             'biography' => 'This biography is too long.',
         ]);
@@ -561,7 +561,7 @@ class PublicFormValidationTest extends TestCase
         $this->assertDatabaseCount('form_submissions', 0);
 
         $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
-            'score' => '100',
+            'score' => '9',
             'nickname' => 'Alex',
             'biography' => 'Short bio',
         ]);
