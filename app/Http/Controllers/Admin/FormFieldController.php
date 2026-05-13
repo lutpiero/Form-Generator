@@ -28,6 +28,10 @@ class FormFieldController extends Controller
             'options' => 'nullable|string',
             'allow_custom_answer' => 'boolean',
             'other_label' => 'nullable|string|max:255',
+            'config.min_value' => 'nullable|numeric',
+            'config.max_value' => 'nullable|numeric|gte:config.min_value',
+            'config.min_length' => 'nullable|integer|min:0',
+            'config.max_length' => 'nullable|integer|min:0|gte:config.min_length',
             'config.auto_number' => 'sometimes|boolean',
             'config.max_rows' => 'nullable|integer|min:0',
             'config.columns' => 'nullable|array',
@@ -82,6 +86,10 @@ class FormFieldController extends Controller
             'order' => 'nullable|integer',
             'allow_custom_answer' => 'boolean',
             'other_label' => 'nullable|string|max:255',
+            'config.min_value' => 'nullable|numeric',
+            'config.max_value' => 'nullable|numeric|gte:config.min_value',
+            'config.min_length' => 'nullable|integer|min:0',
+            'config.max_length' => 'nullable|integer|min:0|gte:config.min_length',
             'config.auto_number' => 'sometimes|boolean',
             'config.max_rows' => 'nullable|integer|min:0',
             'config.columns' => 'nullable|array',
@@ -166,6 +174,32 @@ class FormFieldController extends Controller
 
         if (in_array($type, ['checkbox', 'radio'], true) && $request->boolean('allow_custom_answer', false)) {
             $config['other_label'] = FormField::normalizeOtherLabel($request->input('other_label'));
+        }
+
+        if ($type === 'number') {
+            $minValue = $request->input('config.min_value');
+            $maxValue = $request->input('config.max_value');
+
+            if ($this->hasConfigInput($minValue)) {
+                $config['min_value'] = (float) $minValue;
+            }
+
+            if ($this->hasConfigInput($maxValue)) {
+                $config['max_value'] = (float) $maxValue;
+            }
+        }
+
+        if (in_array($type, ['number', 'text', 'textarea'], true)) {
+            $minLength = $request->input('config.min_length');
+            $maxLength = $request->input('config.max_length');
+
+            if ($this->hasConfigInput($minLength)) {
+                $config['min_length'] = (int) $minLength;
+            }
+
+            if ($this->hasConfigInput($maxLength)) {
+                $config['max_length'] = (int) $maxLength;
+            }
         }
 
         $visibilityConfig = $this->prepareVisibilityConfig($request, $form, $type, $currentField);
@@ -348,6 +382,11 @@ class FormFieldController extends Controller
         $name = trim($name, '_');
 
         return $name !== '' ? $name : 'field';
+    }
+
+    private function hasConfigInput(mixed $value): bool
+    {
+        return $value !== null && (string) $value !== '';
     }
 
     private function visibilityControllerFields(Form $form, ?FormField $currentField = null)

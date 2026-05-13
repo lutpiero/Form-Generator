@@ -62,6 +62,13 @@
             $isInitiallyVisible = !$hasVisibilityRule
                 || $field->passesVisibilityCondition(old($controllerField->name));
             $fieldDisabledAttr = $isInitiallyVisible ? '' : 'disabled';
+            $fieldConfig = is_array($field->config) ? $field->config : [];
+            $minValue = is_numeric($fieldConfig['min_value'] ?? null) ? $fieldConfig['min_value'] : null;
+            $maxValue = is_numeric($fieldConfig['max_value'] ?? null) ? $fieldConfig['max_value'] : null;
+            $minLength = ($fieldConfig['min_length'] ?? null);
+            $maxLength = ($fieldConfig['max_length'] ?? null);
+            $minLength = is_numeric($minLength) ? max(0, (int) $minLength) : null;
+            $maxLength = is_numeric($maxLength) ? max(0, (int) $maxLength) : null;
         @endphp
         <div class="mb-3 form-field"
              data-field-type="{{ $field->type }}"
@@ -85,6 +92,8 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         rows="4"
                         placeholder="{{ $field->placeholder }}"
+                        @if($minLength !== null) minlength="{{ $minLength }}" @endif
+                        @if($maxLength !== null) maxlength="{{ $maxLength }}" @endif
                         {{ $field->required ? 'required' : '' }}
                         {{ $fieldDisabledAttr }}>{{ old($field->name, $field->default_value) }}</textarea>
                     @break
@@ -238,6 +247,28 @@
                         placeholder="{{ $field->placeholder }}"
                         pattern="{{ App\Models\FormField::PHONE_PATTERN }}"
                         inputmode="tel"
+                        {{ $field->required ? 'required' : '' }}
+                        {{ $fieldDisabledAttr }}>
+                    @break
+                @case('number')
+                    <input type="number" name="{{ $field->name }}" id="{{ $field->name }}"
+                        class="form-control @error($field->name) is-invalid @enderror"
+                        value="{{ old($field->name, $field->default_value) }}"
+                        placeholder="{{ $field->placeholder }}"
+                        @if($minValue !== null) min="{{ $minValue }}" @endif
+                        @if($maxValue !== null) max="{{ $maxValue }}" @endif
+                        @if($minLength !== null) minlength="{{ $minLength }}" @endif
+                        @if($maxLength !== null) maxlength="{{ $maxLength }}" @endif
+                        {{ $field->required ? 'required' : '' }}
+                        {{ $fieldDisabledAttr }}>
+                    @break
+                @case('text')
+                    <input type="text" name="{{ $field->name }}" id="{{ $field->name }}"
+                        class="form-control @error($field->name) is-invalid @enderror"
+                        value="{{ old($field->name, $field->default_value) }}"
+                        placeholder="{{ $field->placeholder }}"
+                        @if($minLength !== null) minlength="{{ $minLength }}" @endif
+                        @if($maxLength !== null) maxlength="{{ $maxLength }}" @endif
                         {{ $field->required ? 'required' : '' }}
                         {{ $fieldDisabledAttr }}>
                     @break

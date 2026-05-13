@@ -10,6 +10,10 @@
     $visibilityFieldId = old('visibility.field_id', $visibilityRule['field_id'] ?? '');
     $visibilityOperator = old('visibility.operator', $visibilityRule['operator'] ?? 'equals');
     $visibilityValue = old('visibility.value', $visibilityRule['value'] ?? '');
+    $minValue = old('config.min_value', $fieldConfig['min_value'] ?? '');
+    $maxValue = old('config.max_value', $fieldConfig['max_value'] ?? '');
+    $minLength = old('config.min_length', $fieldConfig['min_length'] ?? '');
+    $maxLength = old('config.max_length', $fieldConfig['max_length'] ?? '');
     $emptyCheckOperators = ['is_empty', 'is_not_empty'];
 @endphp
 
@@ -299,6 +303,40 @@
                value="{{ old('default_value', $field->default_value ?? '') }}">
     </div>
 
+    <div id="numberValueRangeGroup" class="row g-3 mb-3" style="{{ $selectedType === 'number' ? '' : 'display:none' }}">
+        <div class="col-md-6">
+            <label class="form-label fw-semibold" for="config_min_value">Min Value</label>
+            <input type="number" step="any" name="config[min_value]" id="config_min_value"
+                   class="form-control @error('config.min_value') is-invalid @enderror"
+                   value="{{ $minValue }}">
+            @error('config.min_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-6">
+            <label class="form-label fw-semibold" for="config_max_value">Max Value</label>
+            <input type="number" step="any" name="config[max_value]" id="config_max_value"
+                   class="form-control @error('config.max_value') is-invalid @enderror"
+                   value="{{ $maxValue }}">
+            @error('config.max_value')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
+
+    <div id="lengthRangeGroup" class="row g-3 mb-3" style="{{ in_array($selectedType, ['number', 'text', 'textarea'], true) ? '' : 'display:none' }}">
+        <div class="col-md-6">
+            <label class="form-label fw-semibold" for="config_min_length">Min Length</label>
+            <input type="number" min="0" name="config[min_length]" id="config_min_length"
+                   class="form-control @error('config.min_length') is-invalid @enderror"
+                   value="{{ $minLength }}">
+            @error('config.min_length')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+        <div class="col-md-6">
+            <label class="form-label fw-semibold" for="config_max_length">Max Length</label>
+            <input type="number" min="0" name="config[max_length]" id="config_max_length"
+                   class="form-control @error('config.max_length') is-invalid @enderror"
+                   value="{{ $maxLength }}">
+            @error('config.max_length')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        </div>
+    </div>
+
     <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" name="required" id="required" value="1"
             {{ old('required', isset($field) && $field->required ? '1' : '0') == '1' ? 'checked' : '' }}>
@@ -367,6 +405,8 @@
     var placeholderLabel = document.getElementById('placeholderLabel');
     var placeholderInput = document.getElementById('placeholderInput');
     var labelText = document.getElementById('labelText');
+    var numberValueRangeGroup = document.getElementById('numberValueRangeGroup');
+    var lengthRangeGroup = document.getElementById('lengthRangeGroup');
     var columnsContainer = document.getElementById('tableColumnsContainer');
     var addTableColumnButton = document.getElementById('addTableColumn');
     var tableColumnTemplate = document.getElementById('tableColumnTemplate');
@@ -525,6 +565,8 @@
         var isSection = type === 'section';
         var isTable = type === 'table';
         var isLabel = type === 'label';
+        var supportsNumberRange = type === 'number';
+        var supportsLengthRange = ['number', 'text', 'textarea'].includes(type);
 
         optionsGroup.style.display = showOptions ? '' : 'none';
         customAnswerGroup.style.display = supportsCustomAnswer ? '' : 'none';
@@ -533,6 +575,12 @@
         }
         inputOnlyFields.style.display = (isSection || isTable || isLabel) ? 'none' : '';
         visibilityConfigGroup.style.display = (isSection || isTable || isLabel) ? 'none' : '';
+        if (numberValueRangeGroup) {
+            numberValueRangeGroup.style.display = supportsNumberRange ? '' : 'none';
+        }
+        if (lengthRangeGroup) {
+            lengthRangeGroup.style.display = supportsLengthRange ? '' : 'none';
+        }
 
         if (isSection) {
             labelText.innerHTML = 'Section Title <span class="text-danger">*</span>';
