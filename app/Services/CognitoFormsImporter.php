@@ -11,7 +11,7 @@ class CognitoFormsImporter
     public function importFromJson(string $jsonString): array
     {
         $data = json_decode($jsonString, true);
-        if (!$data) {
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($data) || empty($data)) {
             throw new \Exception('Invalid JSON. Please check your input.');
         }
 
