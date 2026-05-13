@@ -89,6 +89,23 @@ class FormController extends Controller
                     break;
                 case 'number':
                     $fieldRules[] = 'numeric';
+                    if (($minValue = $this->numericFieldConfig($field, 'min_value')) !== null) {
+                        $fieldRules[] = 'min:'.$minValue;
+                    }
+                    if (($maxValue = $this->numericFieldConfig($field, 'max_value')) !== null) {
+                        $fieldRules[] = 'max:'.$maxValue;
+                    }
+                    $fieldRules = array_merge($fieldRules, $this->numberLengthRules($field));
+                    break;
+                case 'text':
+                case 'textarea':
+                    $fieldRules[] = 'string';
+                    if (($minLength = $this->integerFieldConfig($field, 'min_length')) !== null) {
+                        $fieldRules[] = 'min:'.$minLength;
+                    }
+                    if (($maxLength = $this->integerFieldConfig($field, 'max_length')) !== null) {
+                        $fieldRules[] = 'max:'.$maxLength;
+                    }
                     break;
                 case 'dropdown':
                 case 'radio':
@@ -464,5 +481,55 @@ class FormController extends Controller
             'dropdown', 'radio', 'checkbox', 'checkbox_dropdown' => 'Please select a valid option.',
             default => 'Invalid value.',
         };
+    }
+
+    protected function numericFieldConfig(FormField $field, string $key): int|float|null
+    {
+        $value = is_array($field->config) ? ($field->config[$key] ?? null) : null;
+
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return $value + 0;
+    }
+
+    protected function integerFieldConfig(FormField $field, string $key): ?int
+    {
+        $value = is_array($field->config) ? ($field->config[$key] ?? null) : null;
+
+        if ($value === null || $value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        return max(0, (int) $value);
+    }
+
+    protected function numberLengthRules(FormField $field): array
+    {
+        $minLength = $this->integerFieldConfig($field, 'min_length');
+        $maxLength = $this->integerFieldConfig($field, 'max_length');
+
+        if ($minLength === null && $maxLength === null) {
+            return [];
+        }
+
+        return [
+            function (string $attribute, mixed $value, $fail) use ($field, $minLength, $maxLength) {
+                if ($value === null || $value === '') {
+                    return;
+                }
+
+                $length = mb_strlen(trim((string) $value));
+
+                if ($minLength !== null && $length < $minLength) {
+                    $fail("{$field->label} must be at least {$minLength} characters.");
+                }
+
+                if ($maxLength !== null && $length > $maxLength) {
+                    $fail("{$field->label} must not exceed {$maxLength} characters.");
+                }
+            },
+        ];
     }
 }

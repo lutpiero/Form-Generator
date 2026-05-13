@@ -420,6 +420,156 @@ class PublicFormValidationTest extends TestCase
             ->assertSee('config[columns][__INDEX__][type]', false);
     }
 
+    public function test_admin_field_builder_includes_min_max_value_and_length_controls(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.fields.create', $form))
+            ->assertOk()
+            ->assertSee('name="config[min_value]"', false)
+            ->assertSee('name="config[max_value]"', false)
+            ->assertSee('name="config[min_length]"', false)
+            ->assertSee('name="config[max_length]"', false);
+    }
+
+    public function test_public_form_renders_min_max_attributes_for_number_text_and_textarea_fields(): void
+    {
+        $form = Form::create([
+            'name' => 'Validation Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Score',
+            'name' => 'score',
+            'type' => 'number',
+            'required' => false,
+            'order' => 0,
+            'config' => [
+                'min_value' => 10,
+                'max_value' => 99,
+                'min_length' => 2,
+                'max_length' => 2,
+            ],
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Nickname',
+            'name' => 'nickname',
+            'type' => 'text',
+            'required' => false,
+            'order' => 1,
+            'config' => [
+                'min_length' => 3,
+                'max_length' => 10,
+            ],
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Biography',
+            'name' => 'biography',
+            'type' => 'textarea',
+            'required' => false,
+            'order' => 2,
+            'config' => [
+                'min_length' => 5,
+                'max_length' => 50,
+            ],
+        ]);
+
+        $response = $this->get(route('forms.show', $form));
+
+        $response->assertOk();
+        $response->assertSee('name="score"', false);
+        $response->assertSee('min="10"', false);
+        $response->assertSee('max="99"', false);
+        $response->assertSee('name="nickname"', false);
+        $response->assertSee('minlength="3"', false);
+        $response->assertSee('maxlength="10"', false);
+        $response->assertSee('name="biography"', false);
+        $response->assertSee('minlength="5"', false);
+        $response->assertSee('maxlength="50"', false);
+    }
+
+    public function test_server_side_validation_enforces_number_value_and_length_and_text_length_rules(): void
+    {
+        $form = Form::create([
+            'name' => 'Validation Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Score',
+            'name' => 'score',
+            'type' => 'number',
+            'required' => true,
+            'order' => 0,
+            'config' => [
+                'min_value' => 10,
+                'max_value' => 99,
+                'min_length' => 2,
+                'max_length' => 2,
+            ],
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Nickname',
+            'name' => 'nickname',
+            'type' => 'text',
+            'required' => true,
+            'order' => 1,
+            'config' => [
+                'min_length' => 3,
+                'max_length' => 5,
+            ],
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Biography',
+            'name' => 'biography',
+            'type' => 'textarea',
+            'required' => true,
+            'order' => 2,
+            'config' => [
+                'min_length' => 5,
+                'max_length' => 10,
+            ],
+        ]);
+
+        $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
+            'score' => '9',
+            'nickname' => 'ab',
+            'biography' => 'This biography is too long.',
+        ]);
+
+        $response->assertRedirect(route('forms.show', $form));
+        $response->assertSessionHasErrors(['score', 'nickname', 'biography']);
+        $this->assertDatabaseCount('form_submissions', 0);
+
+        $response = $this->post(route('forms.submit', $form), [
+            'score' => '42',
+            'nickname' => 'Alex',
+            'biography' => 'Short bio',
+        ]);
+
+        $response->assertRedirect(route('forms.success', $form));
+        $this->assertDatabaseCount('form_submissions', 1);
+    }
+
     public function test_public_form_renders_label_field_without_input_and_submission_skips_it(): void
     {
         $form = Form::create([
