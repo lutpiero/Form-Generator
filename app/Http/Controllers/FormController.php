@@ -520,7 +520,7 @@ class FormController extends Controller
                     return;
                 }
 
-                $length = mb_strlen(trim((string) $value));
+                $length = mb_strlen((string) $value);
 
                 if ($minLength !== null && $length < $minLength) {
                     $fail("{$field->label} must be at least {$minLength} characters.");

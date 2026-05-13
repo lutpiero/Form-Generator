@@ -386,11 +386,7 @@ class FormFieldController extends Controller
 
     private function hasConfigInput(mixed $value): bool
     {
-        if ($value === null) {
-            return false;
-        }
-
-        return !is_string($value) || trim($value) !== '';
+        return $value !== null && (string) $value !== '';
     }
 
     private function visibilityControllerFields(Form $form, ?FormField $currentField = null)
