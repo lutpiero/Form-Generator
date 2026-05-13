@@ -520,7 +520,7 @@ class PublicFormValidationTest extends TestCase
             'order' => 0,
             'config' => [
                 'min_value' => 10,
-                'max_value' => 99,
+                'max_value' => 999,
                 'min_length' => 2,
                 'max_length' => 2,
             ],
@@ -558,6 +558,16 @@ class PublicFormValidationTest extends TestCase
 
         $response->assertRedirect(route('forms.show', $form));
         $response->assertSessionHasErrors(['score', 'nickname', 'biography']);
+        $this->assertDatabaseCount('form_submissions', 0);
+
+        $response = $this->from(route('forms.show', $form))->post(route('forms.submit', $form), [
+            'score' => '100',
+            'nickname' => 'Alex',
+            'biography' => 'Short bio',
+        ]);
+
+        $response->assertRedirect(route('forms.show', $form));
+        $response->assertSessionHasErrors(['score']);
         $this->assertDatabaseCount('form_submissions', 0);
 
         $response = $this->post(route('forms.submit', $form), [
