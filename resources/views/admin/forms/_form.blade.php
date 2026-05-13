@@ -1,8 +1,19 @@
 <div class="mb-3">
     <label class="form-label fw-semibold">Form Name <span class="text-danger">*</span></label>
-    <input type="text" name="name" class="form-control @error('name') is-invalid @enderror"
+    <input type="text" id="title" name="name" class="form-control @error('name') is-invalid @enderror"
            value="{{ old('name', $form->name ?? '') }}" required placeholder="e.g. Contact Form">
     @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+</div>
+
+<div class="mb-3">
+    <label class="form-label fw-semibold" for="slug">URL Slug <span class="text-danger">*</span></label>
+    <div class="input-group">
+        <input type="text" id="slug" name="slug" class="form-control @error('slug') is-invalid @enderror"
+               value="{{ old('slug', $form->slug ?? '') }}" required placeholder="e.g. contact-form">
+        <button class="btn btn-outline-secondary" type="button" id="slug-reset" title="Sync slug from title">↺ Sync</button>
+    </div>
+    @error('slug')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+    <div class="form-text">Preview: <span id="slug-preview">{{ url('/forms') }}/{{ old('slug', $form->slug ?? '') }}</span></div>
 </div>
 
 <div class="mb-3">
@@ -11,6 +22,61 @@
               rows="3" placeholder="Optional form description">{{ old('description', $form->description ?? '') }}</textarea>
     @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
 </div>
+
+@push('scripts')
+<script>
+    (function () {
+        const titleInput = document.getElementById('title');
+        const slugInput = document.getElementById('slug');
+        const slugResetButton = document.getElementById('slug-reset');
+        const slugPreview = document.getElementById('slug-preview');
+
+        if (!titleInput || !slugInput || !slugResetButton) {
+            return;
+        }
+
+        function slugify(text) {
+            return text
+                .toString()
+                .toLowerCase()
+                .trim()
+                .replace(/\s+/g, '-')
+                .replace(/[^\w\-]+/g, '')
+                .replace(/\-\-+/g, '-')
+                .replace(/^-+/, '')
+                .replace(/-+$/, '');
+        }
+
+        function updatePreview() {
+            if (slugPreview) {
+                slugPreview.textContent = `{{ url('/forms') }}/${slugInput.value}`;
+            }
+        }
+
+        let slugManuallyEdited = slugInput.value !== slugify(titleInput.value);
+
+        titleInput.addEventListener('input', function () {
+            if (!slugManuallyEdited) {
+                slugInput.value = slugify(this.value);
+                updatePreview();
+            }
+        });
+
+        slugInput.addEventListener('input', function () {
+            slugManuallyEdited = true;
+            updatePreview();
+        });
+
+        slugResetButton.addEventListener('click', function () {
+            slugManuallyEdited = false;
+            slugInput.value = slugify(titleInput.value);
+            updatePreview();
+        });
+
+        updatePreview();
+    })();
+</script>
+@endpush
 
 <div class="mb-3">
     <label class="form-label fw-semibold">Success Message</label>

@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Form;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class FormController extends Controller
 {
@@ -25,6 +25,13 @@ class FormController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'slug' => [
+                'required',
+                'string',
+                'max:255',
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::unique('forms', 'slug'),
+            ],
             'description' => 'nullable|string',
             'is_active' => 'boolean',
             'captcha_enabled' => 'boolean',
@@ -35,14 +42,6 @@ class FormController extends Controller
 
         $validated['is_active'] = $request->boolean('is_active', true);
         $validated['captcha_enabled'] = $request->boolean('captcha_enabled', false);
-        $validated['slug'] = Str::slug($validated['name']);
-
-        // Make slug unique
-        $originalSlug = $validated['slug'];
-        $count = 1;
-        while (Form::where('slug', $validated['slug'])->exists()) {
-            $validated['slug'] = $originalSlug . '-' . $count++;
-        }
 
         if ($request->hasFile('header_image')) {
             $validated['header_image'] = $request->file('header_image')->store('form-headers', 'public');
@@ -69,6 +68,13 @@ class FormController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'slug' => [
+                'required',
+                'string',
+                'max:255',
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::unique('forms', 'slug')->ignore($form->id),
+            ],
             'description' => 'nullable|string',
             'is_active' => 'boolean',
             'captcha_enabled' => 'boolean',
