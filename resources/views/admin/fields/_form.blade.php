@@ -56,13 +56,13 @@
     <label class="form-label fw-semibold">Field Width</label>
     <input type="hidden" name="config[col_width]" id="colWidthInput" value="{{ $selectedColWidth }}">
     <div class="d-flex gap-2 flex-wrap">
-        @foreach([12 => ['label' => 'Full', 'fraction' => '1/1', 'boxes' => 1], 6 => ['label' => 'Half', 'fraction' => '1/2', 'boxes' => 2], 4 => ['label' => '1/3', 'fraction' => '1/3', 'boxes' => 3], 3 => ['label' => '1/4', 'fraction' => '1/4', 'boxes' => 4]] as $width => $meta)
+        @foreach([12 => ['label' => 'Full', 'fraction' => '1/1', 'boxes' => 1, 'boxWidth' => 28], 6 => ['label' => 'Half', 'fraction' => '1/2', 'boxes' => 2, 'boxWidth' => 13], 4 => ['label' => '1/3', 'fraction' => '1/3', 'boxes' => 3, 'boxWidth' => 8], 3 => ['label' => '1/4', 'fraction' => '1/4', 'boxes' => 4, 'boxWidth' => 5]] as $width => $meta)
             <button type="button"
                     class="btn btn-sm col-width-btn {{ $selectedColWidth === $width ? 'btn-primary' : 'btn-outline-secondary' }}"
                     data-col-width="{{ $width }}">
                 <div class="d-flex gap-1 justify-content-center mb-1">
                     @for($i = 0; $i < $meta['boxes']; $i++)
-                        <div style="width:{{ 28 / $meta['boxes'] }}px; height:14px; border:1px solid currentColor; border-radius:2px;"></div>
+                        <div style="width:{{ $meta['boxWidth'] }}px; height:14px; border:1px solid currentColor; border-radius:2px;"></div>
                     @endfor
                 </div>
                 <div class="small">{{ $meta['label'] }} <span class="text-muted">({{ $meta['fraction'] }})</span></div>

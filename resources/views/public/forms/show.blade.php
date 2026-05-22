@@ -35,7 +35,7 @@
         <div class="row g-3">
         @foreach($form->fields as $field)
         @if($field->type === 'section')
-        <div class="col-12 my-2">
+        <div class="col-12 my-4">
             <hr>
             <h5 class="fw-semibold mb-1">{{ $field->label }}</h5>
             @if($field->placeholder)
@@ -43,7 +43,7 @@
             @endif
         </div>
         @elseif($field->type === 'label')
-        <div class="col-12 mb-2" data-display-label-field>
+        <div class="col-12 mb-4" data-display-label-field>
             <div class="form-control-plaintext fw-semibold py-0">{{ $field->label }}</div>
             @if($field->placeholder)
                 <div class="text-muted small">{{ $field->placeholder }}</div>
