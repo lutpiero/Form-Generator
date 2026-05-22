@@ -32,9 +32,10 @@
             $fieldsById = $form->fields->keyBy('id');
         @endphp
 
+        <div class="row g-3">
         @foreach($form->fields as $field)
         @if($field->type === 'section')
-        <div class="my-4">
+        <div class="col-12 my-4">
             <hr>
             <h5 class="fw-semibold mb-1">{{ $field->label }}</h5>
             @if($field->placeholder)
@@ -42,14 +43,16 @@
             @endif
         </div>
         @elseif($field->type === 'label')
-        <div class="mb-4" data-display-label-field>
+        <div class="col-12 mb-4" data-display-label-field>
             <div class="form-control-plaintext fw-semibold py-0">{{ $field->label }}</div>
             @if($field->placeholder)
                 <div class="text-muted small">{{ $field->placeholder }}</div>
             @endif
         </div>
         @elseif($field->type === 'table')
+        <div class="col-12">
             @include('public.forms.partials.table-field', ['field' => $field])
+        </div>
         @else
         @php
             $fieldError = $errors->first($field->name);
@@ -70,7 +73,7 @@
             $minLength = is_numeric($minLength) ? max(0, (int) $minLength) : null;
             $maxLength = is_numeric($maxLength) ? max(0, (int) $maxLength) : null;
         @endphp
-        <div class="mb-3 form-field"
+        <div class="col-md-{{ $field->col_width }} form-field"
              data-field-type="{{ $field->type }}"
              data-field-name="{{ $field->name }}"
              data-label="{{ $field->label }}"
@@ -287,6 +290,7 @@
         </div>
         @endif
         @endforeach
+        </div>{{-- end .row --}}
 
         {{-- Honeypot --}}
         @if($form->captcha_enabled && $form->captcha_type === 'honeypot')

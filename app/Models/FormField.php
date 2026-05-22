@@ -108,6 +108,12 @@ class FormField extends Model
         }, $columns)));
     }
 
+    public function getColWidthAttribute(): int
+    {
+        $value = is_array($this->config) ? ($this->config['col_width'] ?? 12) : 12;
+        return in_array((int) $value, [3, 4, 6, 12], true) ? (int) $value : 12;
+    }
+
     public function getTableAutoNumberAttribute(): bool
     {
         return (bool) (is_array($this->config) ? ($this->config['auto_number'] ?? false) : false);
