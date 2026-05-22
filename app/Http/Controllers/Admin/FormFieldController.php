@@ -34,6 +34,7 @@ class FormFieldController extends Controller
             'config.max_length' => 'nullable|integer|min:0|gte:config.min_length',
             'config.auto_number' => 'sometimes|boolean',
             'config.max_rows' => 'nullable|integer|min:0',
+            'config.col_width' => 'nullable|integer|in:3,4,6,12',
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
             'config.columns.*.key' => 'nullable|string|max:255',
@@ -92,6 +93,7 @@ class FormFieldController extends Controller
             'config.max_length' => 'nullable|integer|min:0|gte:config.min_length',
             'config.auto_number' => 'sometimes|boolean',
             'config.max_rows' => 'nullable|integer|min:0',
+            'config.col_width' => 'nullable|integer|in:3,4,6,12',
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
             'config.columns.*.key' => 'nullable|string|max:255',
@@ -171,6 +173,11 @@ class FormFieldController extends Controller
         }
 
         $config = [];
+
+        $colWidth = (int) $request->input('config.col_width', 12);
+        if (in_array($colWidth, [3, 4, 6, 12], true) && $colWidth !== 12) {
+            $config['col_width'] = $colWidth;
+        }
 
         if (in_array($type, ['checkbox', 'radio'], true) && $request->boolean('allow_custom_answer', false)) {
             $config['other_label'] = FormField::normalizeOtherLabel($request->input('other_label'));

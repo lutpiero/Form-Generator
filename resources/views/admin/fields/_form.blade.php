@@ -47,6 +47,31 @@
     @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
 </div>
 
+@php
+    $selectedColWidth = old('config.col_width', (isset($field) && is_array($field->config) ? ($field->config['col_width'] ?? 12) : 12));
+    $selectedColWidth = in_array((int) $selectedColWidth, [3, 4, 6, 12]) ? (int) $selectedColWidth : 12;
+@endphp
+
+<div class="mb-3" id="colWidthGroup" style="{{ in_array($selectedType, ['section', 'table'], true) ? 'display:none' : '' }}">
+    <label class="form-label fw-semibold">Field Width</label>
+    <input type="hidden" name="config[col_width]" id="colWidthInput" value="{{ $selectedColWidth }}">
+    <div class="d-flex gap-2 flex-wrap">
+        @foreach([12 => ['label' => 'Full', 'fraction' => '1/1', 'boxes' => 1], 6 => ['label' => 'Half', 'fraction' => '1/2', 'boxes' => 2], 4 => ['label' => '1/3', 'fraction' => '1/3', 'boxes' => 3], 3 => ['label' => '1/4', 'fraction' => '1/4', 'boxes' => 4]] as $width => $meta)
+            <button type="button"
+                    class="btn btn-sm col-width-btn {{ $selectedColWidth === $width ? 'btn-primary' : 'btn-outline-secondary' }}"
+                    data-col-width="{{ $width }}">
+                <div class="d-flex gap-1 justify-content-center mb-1">
+                    @for($i = 0; $i < $meta['boxes']; $i++)
+                        <div style="width:{{ 28 / $meta['boxes'] }}px; height:14px; border:1px solid currentColor; border-radius:2px;"></div>
+                    @endfor
+                </div>
+                <div class="small">{{ $meta['label'] }} <span class="text-muted">({{ $meta['fraction'] }})</span></div>
+            </button>
+        @endforeach
+    </div>
+    <div class="form-text">Controls how wide this field appears on the public form when placed next to other narrower fields.</div>
+</div>
+
 <div class="mb-3" id="optionsGroup" style="{{ in_array($selectedType, ['dropdown','radio','checkbox','checkbox_dropdown'], true) ? '' : 'display:none' }}">
     <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
     <textarea name="options" class="form-control" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3">{{ old('options', isset($field) ? implode("\n", $field->selectable_options) : '') }}</textarea>
@@ -410,6 +435,8 @@
     var columnsContainer = document.getElementById('tableColumnsContainer');
     var addTableColumnButton = document.getElementById('addTableColumn');
     var tableColumnTemplate = document.getElementById('tableColumnTemplate');
+    var colWidthGroup = document.getElementById('colWidthGroup');
+    var colWidthInput = document.getElementById('colWidthInput');
     var emptyCheckOperators = @js($emptyCheckOperators);
 
     function toSnakeCase(value) {
@@ -575,6 +602,9 @@
         }
         inputOnlyFields.style.display = (isSection || isTable || isLabel) ? 'none' : '';
         visibilityConfigGroup.style.display = (isSection || isTable || isLabel) ? 'none' : '';
+        if (colWidthGroup) {
+            colWidthGroup.style.display = (isSection || isTable) ? 'none' : '';
+        }
         if (numberValueRangeGroup) {
             numberValueRangeGroup.style.display = supportsNumberRange ? '' : 'none';
         }
@@ -614,6 +644,22 @@
             if (customAnswerLabelGroup) {
                 customAnswerLabelGroup.style.display = this.checked ? '' : 'none';
             }
+        });
+    }
+
+    if (colWidthGroup) {
+        colWidthGroup.addEventListener('click', function(event) {
+            var btn = event.target.closest('.col-width-btn');
+            if (!btn) {
+                return;
+            }
+            colWidthInput.value = btn.dataset.colWidth;
+            colWidthGroup.querySelectorAll('.col-width-btn').forEach(function(b) {
+                b.classList.remove('btn-primary');
+                b.classList.add('btn-outline-secondary');
+            });
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-primary');
         });
     }
 
