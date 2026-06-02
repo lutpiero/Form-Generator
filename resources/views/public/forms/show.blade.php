@@ -84,7 +84,7 @@
              data-visibility-value="{{ $hasVisibilityRule ? $visibilityRule['value'] : '' }}"
              data-visibility-state="{{ $isInitiallyVisible ? 'visible' : 'hidden' }}"
              style="{{ $isInitiallyVisible ? '' : 'display:none;' }}">
-            <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox', 'checkbox_dropdown'])) for="{{ $field->name }}" @endif>
+            <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox', 'checkbox_dropdown'])) for="{{ $field->type === 'searchable_select' ? $field->name.'_search' : $field->name }}" @endif>
                 {{ $field->label }}
                 @if($field->required) <span class="text-danger">*</span> @endif
             </label>
@@ -107,6 +107,40 @@
                             <option value="{{ $option }}" {{ old($field->name) == $option ? 'selected' : '' }}>{{ $option }}</option>
                         @endforeach
                     </select>
+                    @break
+                @case('searchable_select')
+                    @php $ssOldValue = old($field->name, $field->default_value); @endphp
+                    <div class="searchable-select-wrapper position-relative" data-searchable-select>
+                        <input type="text"
+                               id="{{ $field->name }}_search"
+                               class="form-control @error($field->name) is-invalid @enderror"
+                               placeholder="{{ $field->placeholder ?: 'Type to search...' }}"
+                               value="{{ $ssOldValue }}"
+                               autocomplete="off"
+                               role="combobox"
+                               aria-autocomplete="list"
+                               aria-expanded="false"
+                               aria-controls="{{ $field->name }}_listbox"
+                               {{ $field->required ? 'required' : '' }}
+                               {{ $fieldDisabledAttr }}
+                               data-ss-input>
+                        <input type="hidden"
+                               name="{{ $field->name }}"
+                               id="{{ $field->name }}"
+                               value="{{ $ssOldValue }}"
+                               data-ss-hidden>
+                        <ul id="{{ $field->name }}_listbox"
+                            class="searchable-select-dropdown list-unstyled mb-0"
+                            role="listbox"
+                            style="display:none"
+                            data-ss-listbox>
+                            @foreach($field->options_array as $option)
+                                <li role="option"
+                                    class="searchable-select-option{{ $ssOldValue == $option ? ' active' : '' }}"
+                                    data-ss-option="{{ $option }}">{{ $option }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
                     @break
                 @case('radio')
                     @php
@@ -330,6 +364,38 @@
     .checkbox-dropdown-menu {
         max-height: 260px;
         overflow-y: auto;
+    }
+    .searchable-select-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-top: none;
+        border-radius: 0 0 .375rem .375rem;
+        max-height: 220px;
+        overflow-y: auto;
+        box-shadow: 0 4px 8px rgba(0,0,0,.1);
+    }
+    .searchable-select-option {
+        padding: .4rem .75rem;
+        cursor: pointer;
+        font-size: .9375rem;
+    }
+    .searchable-select-option:hover,
+    .searchable-select-option.focused {
+        background-color: #f0f4ff;
+    }
+    .searchable-select-option.active {
+        background-color: #e7f0ff;
+        font-weight: 500;
+    }
+    .searchable-select-no-results {
+        padding: .4rem .75rem;
+        color: #6c757d;
+        font-size: .9375rem;
     }
 </style>
 @endpush
@@ -819,6 +885,138 @@
             }
         });
     }
+})();
+</script>
+<script>
+(function () {
+    function initSearchableSelect(wrapper) {
+        var searchInput = wrapper.querySelector('[data-ss-input]');
+        var hiddenInput = wrapper.querySelector('[data-ss-hidden]');
+        var listbox = wrapper.querySelector('[data-ss-listbox]');
+        if (!searchInput || !hiddenInput || !listbox) {
+            return;
+        }
+
+        var allOptions = Array.from(listbox.querySelectorAll('[data-ss-option]'));
+        var focusedIndex = -1;
+
+        function getVisibleOptions() {
+            return allOptions.filter(function (opt) { return opt.style.display !== 'none'; });
+        }
+
+        function openDropdown() {
+            listbox.style.display = '';
+            searchInput.setAttribute('aria-expanded', 'true');
+        }
+
+        function closeDropdown() {
+            listbox.style.display = 'none';
+            searchInput.setAttribute('aria-expanded', 'false');
+            focusedIndex = -1;
+            allOptions.forEach(function (opt) { opt.classList.remove('focused'); });
+        }
+
+        function selectOption(value, label) {
+            hiddenInput.value = value;
+            searchInput.value = label;
+            allOptions.forEach(function (opt) {
+                opt.classList.toggle('active', opt.dataset.ssOption === value);
+            });
+            closeDropdown();
+        }
+
+        function filterOptions(query) {
+            var lower = query.toLowerCase();
+            var noResultsEl = listbox.querySelector('.searchable-select-no-results');
+            var hasVisible = false;
+
+            allOptions.forEach(function (opt) {
+                var match = opt.dataset.ssOption.toLowerCase().includes(lower);
+                opt.style.display = match ? '' : 'none';
+                if (match) {
+                    hasVisible = true;
+                }
+                opt.classList.remove('focused');
+            });
+
+            if (noResultsEl) {
+                noResultsEl.style.display = hasVisible ? 'none' : '';
+            } else if (!hasVisible) {
+                var el = document.createElement('li');
+                el.className = 'searchable-select-no-results';
+                el.textContent = 'No results found';
+                listbox.appendChild(el);
+            }
+
+            focusedIndex = -1;
+        }
+
+        function moveFocus(direction) {
+            var visible = getVisibleOptions();
+            if (visible.length === 0) {
+                return;
+            }
+
+            allOptions.forEach(function (opt) { opt.classList.remove('focused'); });
+
+            if (direction === 'down') {
+                focusedIndex = focusedIndex < visible.length - 1 ? focusedIndex + 1 : 0;
+            } else {
+                focusedIndex = focusedIndex > 0 ? focusedIndex - 1 : visible.length - 1;
+            }
+
+            visible[focusedIndex].classList.add('focused');
+            visible[focusedIndex].scrollIntoView({ block: 'nearest' });
+        }
+
+        searchInput.addEventListener('focus', function () {
+            filterOptions(searchInput.value);
+            openDropdown();
+        });
+
+        searchInput.addEventListener('input', function () {
+            hiddenInput.value = searchInput.value;
+            filterOptions(searchInput.value);
+            openDropdown();
+        });
+
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                openDropdown();
+                moveFocus('down');
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                openDropdown();
+                moveFocus('up');
+            } else if (e.key === 'Enter') {
+                var visible = getVisibleOptions();
+                if (focusedIndex >= 0 && visible[focusedIndex]) {
+                    e.preventDefault();
+                    var opt = visible[focusedIndex];
+                    selectOption(opt.dataset.ssOption, opt.textContent);
+                }
+            } else if (e.key === 'Escape') {
+                closeDropdown();
+            }
+        });
+
+        listbox.addEventListener('mousedown', function (e) {
+            var optEl = e.target.closest('[data-ss-option]');
+            if (optEl) {
+                e.preventDefault();
+                selectOption(optEl.dataset.ssOption, optEl.textContent);
+            }
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!wrapper.contains(e.target)) {
+                closeDropdown();
+            }
+        });
+    }
+
+    document.querySelectorAll('[data-searchable-select]').forEach(initSearchableSelect);
 })();
 </script>
 @endpush

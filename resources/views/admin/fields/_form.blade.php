@@ -34,6 +34,7 @@
             'number' => 'Number',
             'textarea' => 'Text Area',
             'dropdown' => 'Dropdown',
+            'searchable_select' => 'Searchable Select',
             'radio' => 'Radio Buttons',
             'checkbox' => 'Checkboxes',
             'checkbox_dropdown' => 'Checkbox Dropdown',
@@ -72,7 +73,7 @@
     <div class="form-text">Controls how wide this field appears on the public form when placed next to other narrower fields.</div>
 </div>
 
-<div class="mb-3" id="optionsGroup" style="{{ in_array($selectedType, ['dropdown','radio','checkbox','checkbox_dropdown'], true) ? '' : 'display:none' }}">
+<div class="mb-3" id="optionsGroup" style="{{ in_array($selectedType, ['dropdown','searchable_select','radio','checkbox','checkbox_dropdown'], true) ? '' : 'display:none' }}">
     <label class="form-label fw-semibold">Options <span class="text-muted small">(one per line)</span></label>
     <textarea name="options" class="form-control" rows="4" placeholder="Option 1&#10;Option 2&#10;Option 3">{{ old('options', isset($field) ? implode("\n", $field->selectable_options) : '') }}</textarea>
 </div>
@@ -587,7 +588,7 @@
     }
 
     function updateFieldVisibility(type) {
-        var showOptions = ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown'].includes(type);
+        var showOptions = ['dropdown', 'searchable_select', 'radio', 'checkbox', 'checkbox_dropdown'].includes(type);
         var supportsCustomAnswer = ['checkbox', 'radio'].includes(type);
         var isSection = type === 'section';
         var isTable = type === 'table';
