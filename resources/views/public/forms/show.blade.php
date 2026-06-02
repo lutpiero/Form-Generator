@@ -133,14 +133,17 @@
                                name="{{ $field->name }}"
                                id="{{ $field->name }}"
                                value="{{ $searchableSelectValue }}"
+                               aria-label="{{ $field->label }}"
                                data-ss-hidden>
+                        <span class="visually-hidden" aria-live="polite" aria-atomic="true" data-ss-live></span>
                         <ul id="{{ $field->name }}_listbox"
                             class="searchable-select-dropdown list-unstyled mb-0"
                             role="listbox"
                             style="display:none"
                             data-ss-listbox>
                             @foreach($field->options_array as $option)
-                                <li role="option"
+                                <li id="{{ $field->name }}_option_{{ $loop->index }}"
+                                    role="option"
                                     class="searchable-select-option{{ $searchableSelectValue == $option ? ' active' : '' }}"
                                     data-ss-option="{{ $option }}">{{ $option }}</li>
                             @endforeach
@@ -898,6 +901,7 @@
         var searchInput = wrapper.querySelector('[data-ss-input]');
         var hiddenInput = wrapper.querySelector('[data-ss-hidden]');
         var listbox = wrapper.querySelector('[data-ss-listbox]');
+        var liveRegion = wrapper.querySelector('[data-ss-live]');
         if (!searchInput || !hiddenInput || !listbox) {
             return;
         }
@@ -917,14 +921,27 @@
             });
         }
 
+        function announce(text) {
+            if (liveRegion) {
+                liveRegion.textContent = '';
+                // Force re-announcement by briefly clearing then setting
+                requestAnimationFrame(function () {
+                    liveRegion.textContent = text;
+                });
+            }
+        }
+
         function openDropdown() {
             listbox.style.display = '';
             searchInput.setAttribute('aria-expanded', 'true');
+            var count = getVisibleOptions().length;
+            announce(count + ' option' + (count !== 1 ? 's' : '') + ' available');
         }
 
         function closeDropdown() {
             listbox.style.display = 'none';
             searchInput.setAttribute('aria-expanded', 'false');
+            searchInput.removeAttribute('aria-activedescendant');
             focusedIndex = -1;
             allOptions.forEach(function (opt) { opt.classList.remove('focused'); });
         }
@@ -954,6 +971,7 @@
             noResultsEl.style.display = hasVisible ? 'none' : '';
 
             focusedIndex = -1;
+            searchInput.removeAttribute('aria-activedescendant');
         }
 
         function moveFocus(direction) {
@@ -972,6 +990,9 @@
 
             visible[focusedIndex].classList.add('focused');
             visible[focusedIndex].scrollIntoView({ block: 'nearest' });
+            if (visible[focusedIndex].id) {
+                searchInput.setAttribute('aria-activedescendant', visible[focusedIndex].id);
+            }
         }
 
         searchInput.addEventListener('focus', function () {
@@ -986,6 +1007,7 @@
         });
 
         searchInput.addEventListener('keydown', function (e) {
+            var isOpen = listbox.style.display !== 'none';
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 openDropdown();
@@ -995,21 +1017,31 @@
                 openDropdown();
                 moveFocus('up');
             } else if (e.key === 'Enter') {
-                var visible = getVisibleOptions();
-                if (focusedIndex >= 0 && visible[focusedIndex]) {
+                if (isOpen) {
                     e.preventDefault();
-                    var opt = visible[focusedIndex];
-                    selectOption(opt.dataset.ssOption, opt.textContent);
+                    var visible = getVisibleOptions();
+                    if (focusedIndex >= 0 && visible[focusedIndex]) {
+                        var opt = visible[focusedIndex];
+                        selectOption(opt.dataset.ssOption, opt.textContent);
+                    } else {
+                        closeDropdown();
+                    }
                 }
             } else if (e.key === 'Escape') {
                 closeDropdown();
             }
         });
 
+        // Use mousedown to prevent blur before selection, then click to select.
         listbox.addEventListener('mousedown', function (e) {
+            if (e.target.closest('[data-ss-option]')) {
+                e.preventDefault();
+            }
+        });
+
+        listbox.addEventListener('click', function (e) {
             var optEl = e.target.closest('[data-ss-option]');
             if (optEl) {
-                e.preventDefault();
                 selectOption(optEl.dataset.ssOption, optEl.textContent);
             }
         });
