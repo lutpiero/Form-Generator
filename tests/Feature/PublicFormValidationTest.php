@@ -637,7 +637,7 @@ class PublicFormValidationTest extends TestCase
         $this->get(route('forms.show', $form))
             ->assertOk()
             ->assertSee('data-display-label-field', false)
-            ->assertSee('Please review the instructions before submitting.<br')
+            ->assertSee('Please review the instructions before submitting.<br>', false)
             ->assertSee('Bring a valid ID.')
             ->assertSee($labelField->placeholder)
             ->assertDontSee('name="'.$labelField->name.'"', false)

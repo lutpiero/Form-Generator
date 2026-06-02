@@ -622,6 +622,11 @@
             lengthRangeGroup.style.display = supportsLengthRange ? '' : 'none';
         }
         if (labelInput && labelTextarea) {
+            if (isLabel) {
+                labelTextarea.value = labelInput.value;
+            } else {
+                labelInput.value = labelTextarea.value;
+            }
             labelInput.style.display = isLabel ? 'none' : '';
             labelInput.disabled = isLabel;
             labelInput.name = isLabel ? '' : labelInput.dataset.fieldName;
@@ -651,20 +656,6 @@
         if (isTable && columnsContainer.children.length === 0) {
             createColumn();
         }
-    }
-
-    if (labelInput && labelTextarea) {
-        labelInput.addEventListener('input', function() {
-            if (labelTextarea.value !== this.value) {
-                labelTextarea.value = this.value;
-            }
-        });
-
-        labelTextarea.addEventListener('input', function() {
-            if (labelInput.value !== this.value) {
-                labelInput.value = this.value;
-            }
-        });
     }
 
     fieldType.addEventListener('change', function() {
