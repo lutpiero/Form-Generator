@@ -20,11 +20,13 @@
 
 <div class="mb-3" id="labelGroup">
     <label class="form-label fw-semibold" id="labelText">Label <span class="text-danger">*</span></label>
-    <input type="text" name="label" id="labelInput" class="form-control @error('label') is-invalid @enderror"
+    <input type="text" name="{{ $selectedType === 'label' ? '' : 'label' }}" id="labelInput" class="form-control @error('label') is-invalid @enderror"
            value="{{ $labelValue }}" required placeholder="e.g. Your Name"
+           data-field-name="label"
            style="{{ $selectedType === 'label' ? 'display:none' : '' }}" {{ $selectedType === 'label' ? 'disabled' : '' }}>
-    <textarea name="label" id="labelTextarea" class="form-control @error('label') is-invalid @enderror"
+    <textarea name="{{ $selectedType === 'label' ? 'label' : '' }}" id="labelTextarea" class="form-control @error('label') is-invalid @enderror"
               rows="4" required placeholder="e.g. Please review the instructions before submitting."
+              data-field-name="label"
               style="{{ $selectedType === 'label' ? '' : 'display:none' }}" {{ $selectedType === 'label' ? '' : 'disabled' }}>{{ $labelValue }}</textarea>
     @error('label')<div class="invalid-feedback">{{ $message }}</div>@enderror
 </div>
@@ -622,8 +624,10 @@
         if (labelInput && labelTextarea) {
             labelInput.style.display = isLabel ? 'none' : '';
             labelInput.disabled = isLabel;
+            labelInput.name = isLabel ? '' : labelInput.dataset.fieldName;
             labelTextarea.style.display = isLabel ? '' : 'none';
             labelTextarea.disabled = !isLabel;
+            labelTextarea.name = isLabel ? labelTextarea.dataset.fieldName : '';
         }
 
         if (isSection) {
@@ -651,11 +655,15 @@
 
     if (labelInput && labelTextarea) {
         labelInput.addEventListener('input', function() {
-            labelTextarea.value = this.value;
+            if (labelTextarea.value !== this.value) {
+                labelTextarea.value = this.value;
+            }
         });
 
         labelTextarea.addEventListener('input', function() {
-            labelInput.value = this.value;
+            if (labelInput.value !== this.value) {
+                labelInput.value = this.value;
+            }
         });
     }
 
