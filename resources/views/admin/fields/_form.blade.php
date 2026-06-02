@@ -1,5 +1,6 @@
 @php
     $selectedType = old('type', $field->type ?? 'text');
+    $labelValue = old('label', $field->label ?? '');
     $fieldConfig = isset($field) && is_array($field->config) ? $field->config : [];
     $tableColumns = old('config.columns', $fieldConfig['columns'] ?? []);
     $tableColumns = is_array($tableColumns) ? $tableColumns : [];
@@ -19,8 +20,12 @@
 
 <div class="mb-3" id="labelGroup">
     <label class="form-label fw-semibold" id="labelText">Label <span class="text-danger">*</span></label>
-    <input type="text" name="label" class="form-control @error('label') is-invalid @enderror"
-           value="{{ old('label', $field->label ?? '') }}" required placeholder="e.g. Your Name">
+    <input type="text" name="label" id="labelInput" class="form-control @error('label') is-invalid @enderror"
+           value="{{ $labelValue }}" required placeholder="e.g. Your Name"
+           style="{{ $selectedType === 'label' ? 'display:none' : '' }}" {{ $selectedType === 'label' ? 'disabled' : '' }}>
+    <textarea name="label" id="labelTextarea" class="form-control @error('label') is-invalid @enderror"
+              rows="4" required placeholder="e.g. Please review the instructions before submitting."
+              style="{{ $selectedType === 'label' ? '' : 'display:none' }}" {{ $selectedType === 'label' ? '' : 'disabled' }}>{{ $labelValue }}</textarea>
     @error('label')<div class="invalid-feedback">{{ $message }}</div>@enderror
 </div>
 
@@ -431,6 +436,8 @@
     var placeholderLabel = document.getElementById('placeholderLabel');
     var placeholderInput = document.getElementById('placeholderInput');
     var labelText = document.getElementById('labelText');
+    var labelInput = document.getElementById('labelInput');
+    var labelTextarea = document.getElementById('labelTextarea');
     var numberValueRangeGroup = document.getElementById('numberValueRangeGroup');
     var lengthRangeGroup = document.getElementById('lengthRangeGroup');
     var columnsContainer = document.getElementById('tableColumnsContainer');
@@ -612,6 +619,12 @@
         if (lengthRangeGroup) {
             lengthRangeGroup.style.display = supportsLengthRange ? '' : 'none';
         }
+        if (labelInput && labelTextarea) {
+            labelInput.style.display = isLabel ? 'none' : '';
+            labelInput.disabled = isLabel;
+            labelTextarea.style.display = isLabel ? '' : 'none';
+            labelTextarea.disabled = !isLabel;
+        }
 
         if (isSection) {
             labelText.innerHTML = 'Section Title <span class="text-danger">*</span>';
@@ -634,6 +647,16 @@
         if (isTable && columnsContainer.children.length === 0) {
             createColumn();
         }
+    }
+
+    if (labelInput && labelTextarea) {
+        labelInput.addEventListener('input', function() {
+            labelTextarea.value = this.value;
+        });
+
+        labelTextarea.addEventListener('input', function() {
+            labelInput.value = this.value;
+        });
     }
 
     fieldType.addEventListener('change', function() {

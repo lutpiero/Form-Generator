@@ -420,6 +420,34 @@ class PublicFormValidationTest extends TestCase
             ->assertSee('config[columns][__INDEX__][type]', false);
     }
 
+    public function test_admin_field_builder_uses_textarea_for_label_type_fields(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $field = $form->fields()->create([
+            'label' => "Please review the instructions.\nBring a valid ID.",
+            'name' => 'instructions',
+            'type' => 'label',
+            'required' => false,
+            'order' => 0,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.fields.edit', [$form, $field]))
+            ->assertOk()
+            ->assertSee('id="labelTextarea"', false)
+            ->assertSee('rows="4"', false)
+            ->assertSee("Please review the instructions.\nBring a valid ID.", false)
+            ->assertSee('id="labelInput"', false);
+    }
+
     public function test_admin_field_builder_includes_min_max_value_and_length_controls(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);
@@ -591,7 +619,7 @@ class PublicFormValidationTest extends TestCase
         ]);
 
         $labelField = $form->fields()->create([
-            'label' => 'Please review the instructions before submitting.',
+            'label' => "Please review the instructions before submitting.\nBring a valid ID.",
             'name' => 'instructions',
             'type' => 'label',
             'placeholder' => 'Fields marked with * are required.',
@@ -610,7 +638,8 @@ class PublicFormValidationTest extends TestCase
         $this->get(route('forms.show', $form))
             ->assertOk()
             ->assertSee('data-display-label-field', false)
-            ->assertSee($labelField->label)
+            ->assertSee('Please review the instructions before submitting.<br')
+            ->assertSee('Bring a valid ID.')
             ->assertSee($labelField->placeholder)
             ->assertDontSee('name="'.$labelField->name.'"', false)
             ->assertDontSee('id="'.$labelField->name.'"', false);
