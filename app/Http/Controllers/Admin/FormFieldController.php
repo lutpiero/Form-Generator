@@ -21,7 +21,7 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,table,section,label',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,searchable_select,table,section,label',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
@@ -79,7 +79,7 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,table,section,label',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,searchable_select,table,section,label',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',

@@ -797,6 +797,109 @@ class PublicFormValidationTest extends TestCase
         $this->assertSame('Fuse Box, Cable', $summarySheet->getCell('C2')->getValue());
     }
 
+    public function test_admin_field_builder_includes_searchable_select_type(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.fields.create', $form))
+            ->assertOk()
+            ->assertSee('<option value="searchable_select"', false)
+            ->assertSee('Searchable Select');
+    }
+
+    public function test_admin_can_store_searchable_select_field(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Search Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $response = $this->actingAs($admin)->post(route('admin.forms.fields.store', $form), [
+            'label' => 'Country',
+            'type' => 'searchable_select',
+            'options' => "Indonesia\nMalaysia\nSingapore",
+        ]);
+
+        $response->assertRedirect(route('admin.forms.show', $form));
+
+        $field = $form->fields()->first();
+        $this->assertNotNull($field);
+        $this->assertSame('searchable_select', $field->type);
+        $this->assertSame(['Indonesia', 'Malaysia', 'Singapore'], $field->options_array);
+    }
+
+    public function test_public_form_renders_searchable_select_field(): void
+    {
+        $field = $this->createSearchableSelectField();
+
+        $this->get(route('forms.show', $field->form))
+            ->assertOk()
+            ->assertSee('data-searchable-select', false)
+            ->assertSee('data-ss-input', false)
+            ->assertSee('data-ss-option="Indonesia"', false)
+            ->assertSee('data-ss-option="Malaysia"', false);
+    }
+
+    public function test_searchable_select_stores_submitted_value(): void
+    {
+        $field = $this->createSearchableSelectField();
+
+        $response = $this->post(route('forms.submit', $field->form), [
+            'country' => 'Malaysia',
+        ]);
+
+        $response->assertRedirect(route('forms.success', $field->form));
+
+        $submission = FormSubmission::first();
+        $this->assertNotNull($submission);
+        $this->assertSame('Malaysia', $submission->data['country']);
+    }
+
+    public function test_searchable_select_required_validation_works(): void
+    {
+        $field = $this->createSearchableSelectField(['required' => true]);
+
+        $response = $this->from(route('forms.show', $field->form))
+            ->post(route('forms.submit', $field->form), ['country' => '']);
+
+        $response->assertRedirect(route('forms.show', $field->form));
+        $response->assertSessionHasErrors(['country']);
+        $this->assertDatabaseCount('form_submissions', 0);
+    }
+
+    private function createSearchableSelectField(array $overrides = []): FormField
+    {
+        $form = Form::create([
+            'name' => 'Country Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        return $form->fields()->create(array_merge([
+            'label' => 'Country',
+            'name' => 'country',
+            'type' => 'searchable_select',
+            // options is stored as a JSON string in the DB; options_array accessor decodes it
+            'options' => json_encode(['Indonesia', 'Malaysia', 'Singapore']),
+            'required' => false,
+            'order' => 0,
+        ], $overrides));
+    }
+
     private function createCheckboxField(array $overrides = []): FormField
     {
         $form = Form::create([

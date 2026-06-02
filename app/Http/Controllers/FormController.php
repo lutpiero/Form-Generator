@@ -107,6 +107,10 @@ class FormController extends Controller
                         $fieldRules[] = 'max:'.$maxLength;
                     }
                     break;
+                case 'searchable_select':
+                    $fieldRules[] = 'string';
+                    $fieldRules[] = 'max:255';
+                    break;
                 case 'dropdown':
                 case 'radio':
                     if (!empty($field->options_array)) {
