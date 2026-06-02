@@ -44,7 +44,7 @@
         </div>
         @elseif($field->type === 'label')
         <div class="col-12 mb-4" data-display-label-field>
-            <div class="form-control-plaintext fw-semibold py-0">{{ $field->label }}</div>
+            <div class="form-control-plaintext fw-semibold py-0">{!! nl2br(e($field->label)) !!}</div>
             @if($field->placeholder)
                 <div class="text-muted small">{{ $field->placeholder }}</div>
             @endif
