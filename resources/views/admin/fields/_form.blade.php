@@ -21,11 +21,11 @@
 <div class="mb-3" id="labelGroup">
     <label class="form-label fw-semibold" id="labelText">Label <span class="text-danger">*</span></label>
     <input type="text" name="{{ $selectedType === 'label' ? '' : 'label' }}" id="labelInput" class="form-control @error('label') is-invalid @enderror"
-           value="{{ $labelValue }}" required placeholder="e.g. Your Name"
+           value="{{ $labelValue }}" {{ $selectedType === 'label' ? '' : 'required' }} placeholder="e.g. Your Name"
            data-field-name="label"
            style="{{ $selectedType === 'label' ? 'display:none' : '' }}" {{ $selectedType === 'label' ? 'disabled' : '' }}>
     <textarea name="{{ $selectedType === 'label' ? 'label' : '' }}" id="labelTextarea" class="form-control @error('label') is-invalid @enderror"
-              rows="4" required placeholder="e.g. Please review the instructions before submitting."
+              rows="4" {{ $selectedType === 'label' ? 'required' : '' }} placeholder="e.g. Please review the instructions before submitting."
               data-field-name="label"
               style="{{ $selectedType === 'label' ? '' : 'display:none' }}" {{ $selectedType === 'label' ? '' : 'disabled' }}>{{ $labelValue }}</textarea>
     @error('label')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -630,9 +630,11 @@
             labelInput.style.display = isLabel ? 'none' : '';
             labelInput.disabled = isLabel;
             labelInput.name = isLabel ? '' : labelInput.dataset.fieldName;
+            labelInput.required = !isLabel;
             labelTextarea.style.display = isLabel ? '' : 'none';
             labelTextarea.disabled = !isLabel;
             labelTextarea.name = isLabel ? labelTextarea.dataset.fieldName : '';
+            labelTextarea.required = isLabel;
         }
 
         if (isSection) {

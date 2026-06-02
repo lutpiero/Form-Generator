@@ -444,7 +444,7 @@ class PublicFormValidationTest extends TestCase
             ->assertOk()
             ->assertSee('id="labelTextarea"', false)
             ->assertSee('rows="4"', false)
-            ->assertSee("Please review the instructions.\nBring a valid ID.", false);
+            ->assertSee(">Please review the instructions.\nBring a valid ID.</textarea>", false);
     }
 
     public function test_admin_field_builder_includes_min_max_value_and_length_controls(): void
