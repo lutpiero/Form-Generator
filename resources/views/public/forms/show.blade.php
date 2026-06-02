@@ -84,7 +84,12 @@
              data-visibility-value="{{ $hasVisibilityRule ? $visibilityRule['value'] : '' }}"
              data-visibility-state="{{ $isInitiallyVisible ? 'visible' : 'hidden' }}"
              style="{{ $isInitiallyVisible ? '' : 'display:none;' }}">
-            <label class="form-label fw-semibold" @if(!in_array($field->type, ['radio', 'checkbox', 'checkbox_dropdown'])) for="{{ $field->type === 'searchable_select' ? $field->name.'_search' : $field->name }}" @endif>
+            @php
+                $labelForTypes = ['radio', 'checkbox', 'checkbox_dropdown'];
+                $labelFor = in_array($field->type, $labelForTypes) ? null
+                    : ($field->type === 'searchable_select' ? $field->name.'_search' : $field->name);
+            @endphp
+            <label class="form-label fw-semibold" @if($labelFor) for="{{ $labelFor }}" @endif>
                 {{ $field->label }}
                 @if($field->required) <span class="text-danger">*</span> @endif
             </label>
@@ -109,13 +114,13 @@
                     </select>
                     @break
                 @case('searchable_select')
-                    @php $ssOldValue = old($field->name, $field->default_value); @endphp
+                    @php $searchableSelectValue = old($field->name, $field->default_value); @endphp
                     <div class="searchable-select-wrapper position-relative" data-searchable-select>
                         <input type="text"
                                id="{{ $field->name }}_search"
                                class="form-control @error($field->name) is-invalid @enderror"
                                placeholder="{{ $field->placeholder ?: 'Type to search...' }}"
-                               value="{{ $ssOldValue }}"
+                               value="{{ $searchableSelectValue }}"
                                autocomplete="off"
                                role="combobox"
                                aria-autocomplete="list"
@@ -127,7 +132,7 @@
                         <input type="hidden"
                                name="{{ $field->name }}"
                                id="{{ $field->name }}"
-                               value="{{ $ssOldValue }}"
+                               value="{{ $searchableSelectValue }}"
                                data-ss-hidden>
                         <ul id="{{ $field->name }}_listbox"
                             class="searchable-select-dropdown list-unstyled mb-0"
@@ -136,7 +141,7 @@
                             data-ss-listbox>
                             @foreach($field->options_array as $option)
                                 <li role="option"
-                                    class="searchable-select-option{{ $ssOldValue == $option ? ' active' : '' }}"
+                                    class="searchable-select-option{{ $searchableSelectValue == $option ? ' active' : '' }}"
                                     data-ss-option="{{ $option }}">{{ $option }}</li>
                             @endforeach
                         </ul>
@@ -900,8 +905,16 @@
         var allOptions = Array.from(listbox.querySelectorAll('[data-ss-option]'));
         var focusedIndex = -1;
 
+        var noResultsEl = document.createElement('li');
+        noResultsEl.className = 'searchable-select-no-results';
+        noResultsEl.textContent = 'No results found';
+        noResultsEl.style.display = 'none';
+        listbox.appendChild(noResultsEl);
+
         function getVisibleOptions() {
-            return allOptions.filter(function (opt) { return opt.style.display !== 'none'; });
+            return allOptions.filter(function (opt) {
+                return opt.style.display !== 'none';
+            });
         }
 
         function openDropdown() {
@@ -927,7 +940,6 @@
 
         function filterOptions(query) {
             var lower = query.toLowerCase();
-            var noResultsEl = listbox.querySelector('.searchable-select-no-results');
             var hasVisible = false;
 
             allOptions.forEach(function (opt) {
@@ -939,14 +951,7 @@
                 opt.classList.remove('focused');
             });
 
-            if (noResultsEl) {
-                noResultsEl.style.display = hasVisible ? 'none' : '';
-            } else if (!hasVisible) {
-                var el = document.createElement('li');
-                el.className = 'searchable-select-no-results';
-                el.textContent = 'No results found';
-                listbox.appendChild(el);
-            }
+            noResultsEl.style.display = hasVisible ? 'none' : '';
 
             focusedIndex = -1;
         }
