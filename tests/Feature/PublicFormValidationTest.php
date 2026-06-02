@@ -893,6 +893,7 @@ class PublicFormValidationTest extends TestCase
             'label' => 'Country',
             'name' => 'country',
             'type' => 'searchable_select',
+            // options is stored as a JSON string in the DB; options_array accessor decodes it
             'options' => json_encode(['Indonesia', 'Malaysia', 'Singapore']),
             'required' => false,
             'order' => 0,

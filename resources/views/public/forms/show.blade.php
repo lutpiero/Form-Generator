@@ -924,7 +924,9 @@
         function announce(text) {
             if (liveRegion) {
                 liveRegion.textContent = '';
-                // Force re-announcement by briefly clearing then setting
+                // Force re-announcement: clearing then setting the text in the next
+                // animation frame ensures screen readers detect the change even when
+                // the announced text is identical to the previous announcement.
                 requestAnimationFrame(function () {
                     liveRegion.textContent = text;
                 });
@@ -1032,7 +1034,10 @@
             }
         });
 
-        // Use mousedown to prevent blur before selection, then click to select.
+        // Prevent blur on mousedown so the input stays focused while the user
+        // clicks an option — without this, the input would blur and close the
+        // dropdown before the click event fires. Selection itself is handled in
+        // the click listener below, which also fires for keyboard-simulated clicks.
         listbox.addEventListener('mousedown', function (e) {
             if (e.target.closest('[data-ss-option]')) {
                 e.preventDefault();
