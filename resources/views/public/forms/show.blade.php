@@ -66,6 +66,7 @@
                 || $field->passesVisibilityCondition(old($controllerField->name));
             $fieldDisabledAttr = $isInitiallyVisible ? '' : 'disabled';
             $fieldConfig = is_array($field->config) ? $field->config : [];
+            $hideLabel = !in_array($field->type, ['section', 'table', 'label'], true) && !empty($fieldConfig['hide_label']);
             $minValue = is_numeric($fieldConfig['min_value'] ?? null) ? $fieldConfig['min_value'] : null;
             $maxValue = is_numeric($fieldConfig['max_value'] ?? null) ? $fieldConfig['max_value'] : null;
             $minLength = ($fieldConfig['min_length'] ?? null);
@@ -89,10 +90,12 @@
                 $labelFor = in_array($field->type, $labelForTypes) ? null
                     : ($field->type === 'searchable_select' ? $field->name.'_search' : $field->name);
             @endphp
-            <label class="form-label fw-semibold" @if($labelFor) for="{{ $labelFor }}" @endif>
-                {{ $field->label }}
-                @if($field->required) <span class="text-danger">*</span> @endif
-            </label>
+            @unless($hideLabel)
+                <label class="form-label fw-semibold" @if($labelFor) for="{{ $labelFor }}" @endif>
+                    {{ $field->label }}
+                    @if($field->required) <span class="text-danger">*</span> @endif
+                </label>
+            @endunless
 
             @switch($field->type)
                 @case('textarea')
@@ -100,13 +103,14 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         rows="4"
                         placeholder="{{ $field->placeholder }}"
+                        @if($hideLabel) aria-label="{{ $field->label }}" @endif
                         @if($minLength !== null) minlength="{{ $minLength }}" @endif
                         @if($maxLength !== null) maxlength="{{ $maxLength }}" @endif
                         {{ $field->required ? 'required' : '' }}
                         {{ $fieldDisabledAttr }}>{{ old($field->name, $field->default_value) }}</textarea>
                     @break
                 @case('dropdown')
-                    <select name="{{ $field->name }}" id="{{ $field->name }}" class="form-select @error($field->name) is-invalid @enderror" {{ $field->required ? 'required' : '' }} {{ $fieldDisabledAttr }}>
+                    <select name="{{ $field->name }}" id="{{ $field->name }}" class="form-select @error($field->name) is-invalid @enderror" @if($hideLabel) aria-label="{{ $field->label }}" @endif {{ $field->required ? 'required' : '' }} {{ $fieldDisabledAttr }}>
                         <option value="">{{ $field->placeholder ?: 'Select an option' }}</option>
                         @foreach($field->options_array as $option)
                             <option value="{{ $option }}" {{ old($field->name) == $option ? 'selected' : '' }}>{{ $option }}</option>
@@ -126,6 +130,7 @@
                                aria-autocomplete="list"
                                aria-expanded="false"
                                aria-controls="{{ $field->name }}_listbox"
+                               @if($hideLabel) aria-label="{{ $field->label }}" @endif
                                {{ $field->required ? 'required' : '' }}
                                {{ $fieldDisabledAttr }}
                                data-ss-input>
@@ -164,6 +169,7 @@
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="radio"
                                    name="{{ $field->name }}" value="{{ $option }}"
                                     id="{{ $field->name }}_{{ $loop->index }}"
+                                    @if($hideLabel) aria-label="{{ $field->label }}: {{ $option }}" @endif
                                      {{ $oldRadioValue == $option ? 'checked' : '' }}
                                     {{ $field->required ? 'required' : '' }}
                                     {{ $fieldDisabledAttr }}>
@@ -179,6 +185,7 @@
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="radio"
                                    name="{{ $field->name }}" value="{{ FormField::OTHER_OPTION_VALUE }}"
                                    id="{{ $field->name }}_other_toggle"
+                                   @if($hideLabel) aria-label="{{ $field->label }}: {{ $field->other_label }}" @endif
                                    data-other-toggle
                                    data-other-input-id="{{ $field->other_input_name }}"
                                    {{ $radioOtherChecked ? 'checked' : '' }}
@@ -212,6 +219,7 @@
                             <input class="form-check-input @if($fieldError) is-invalid @endif" type="checkbox"
                                    name="{{ $field->name }}[]" value="{{ $option }}"
                                    id="{{ $field->name }}_{{ $loop->index }}"
+                                   @if($hideLabel) aria-label="{{ $field->label }}: {{ $option }}" @endif
                                    {{ $oldCheckboxValues->contains($option) ? 'checked' : '' }}
                                    {{ $fieldDisabledAttr }}>
                             <label class="form-check-label" for="{{ $field->name }}_{{ $loop->index }}">{{ $option }}</label>
@@ -227,6 +235,7 @@
                             <input class="form-check-input @if($fieldError || $otherFieldError) is-invalid @endif" type="checkbox"
                                    name="{{ $field->name }}[]" value="{{ FormField::OTHER_OPTION_VALUE }}"
                                    id="{{ $field->name }}_other_toggle"
+                                   @if($hideLabel) aria-label="{{ $field->label }}: {{ $field->other_label }}" @endif
                                    data-other-toggle
                                    data-other-input-id="{{ $field->other_input_name }}"
                                    {{ $otherChecked ? 'checked' : '' }}
@@ -265,6 +274,7 @@
                                 id="{{ $field->name }}_dropdown"
                                 data-bs-toggle="dropdown"
                                 data-bs-auto-close="outside"
+                                @if($hideLabel) aria-label="{{ $field->label }}" @endif
                                 aria-expanded="false">
                             <span class="text-truncate pe-2" data-checkbox-dropdown-summary>{{ $selectionSummary }}</span>
                         </button>
@@ -275,6 +285,7 @@
                                         <input class="form-check-input @if($fieldError) is-invalid @endif" type="checkbox"
                                                name="{{ $field->name }}[]" value="{{ $option }}"
                                                id="{{ $field->name }}_dropdown_{{ $loop->index }}"
+                                               @if($hideLabel) aria-label="{{ $field->label }}: {{ $option }}" @endif
                                                data-checkbox-dropdown-option
                                                {{ array_key_exists($option, $oldCheckboxLookup) ? 'checked' : '' }}
                                                {{ $fieldDisabledAttr }}>
@@ -290,6 +301,7 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
+                        @if($hideLabel) aria-label="{{ $field->label }}" @endif
                         pattern="{{ App\Models\FormField::PHONE_PATTERN }}"
                         inputmode="tel"
                         {{ $field->required ? 'required' : '' }}
@@ -300,6 +312,7 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
+                        @if($hideLabel) aria-label="{{ $field->label }}" @endif
                         @if($minValue !== null) min="{{ $minValue }}" @endif
                         @if($maxValue !== null) max="{{ $maxValue }}" @endif
                         @if($minLength !== null) minlength="{{ $minLength }}" @endif
@@ -312,6 +325,7 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
+                        @if($hideLabel) aria-label="{{ $field->label }}" @endif
                         @if($minLength !== null) minlength="{{ $minLength }}" @endif
                         @if($maxLength !== null) maxlength="{{ $maxLength }}" @endif
                         {{ $field->required ? 'required' : '' }}
@@ -322,6 +336,7 @@
                         class="form-control @error($field->name) is-invalid @enderror"
                         value="{{ old($field->name, $field->default_value) }}"
                         placeholder="{{ $field->placeholder }}"
+                        @if($hideLabel) aria-label="{{ $field->label }}" @endif
                         {{ $field->required ? 'required' : '' }}
                         {{ $fieldDisabledAttr }}>
             @endswitch

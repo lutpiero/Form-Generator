@@ -15,6 +15,7 @@
     $maxValue = old('config.max_value', $fieldConfig['max_value'] ?? '');
     $minLength = old('config.min_length', $fieldConfig['min_length'] ?? '');
     $maxLength = old('config.max_length', $fieldConfig['max_length'] ?? '');
+    $hideLabel = old('hide_label', !empty($fieldConfig['hide_label']));
     $emptyCheckOperators = ['is_empty', 'is_not_empty'];
 @endphp
 
@@ -374,6 +375,12 @@
         <input class="form-check-input" type="checkbox" name="required" id="required" value="1"
             {{ old('required', isset($field) && $field->required ? '1' : '0') == '1' ? 'checked' : '' }}>
         <label class="form-check-label fw-semibold" for="required">Required field</label>
+    </div>
+
+    <div class="form-check form-switch mt-2">
+        <input class="form-check-input" type="checkbox" name="hide_label" id="hide_label" value="1"
+            {{ $hideLabel ? 'checked' : '' }}>
+        <label class="form-check-label fw-semibold" for="hide_label">Hide Label on public form</label>
     </div>
 </div>
 

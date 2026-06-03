@@ -467,6 +467,84 @@ class PublicFormValidationTest extends TestCase
             ->assertSee('name="config[max_length]"', false);
     }
 
+    public function test_admin_field_builder_includes_hide_label_toggle(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.forms.fields.create', $form))
+            ->assertOk()
+            ->assertSee('name="hide_label"', false)
+            ->assertSee('Hide Label on public form');
+    }
+
+    public function test_admin_can_store_hide_label_for_input_fields_only(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $form = Form::create([
+            'name' => 'Builder Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.forms.fields.store', $form), [
+            'label' => 'Full Name',
+            'type' => 'text',
+            'hide_label' => '1',
+        ])->assertRedirect(route('admin.forms.show', $form));
+
+        $this->actingAs($admin)->post(route('admin.forms.fields.store', $form), [
+            'label' => 'Profile Section',
+            'type' => 'section',
+            'hide_label' => '1',
+        ])->assertRedirect(route('admin.forms.show', $form));
+
+        $inputField = $form->fields()->where('name', 'full_name')->first();
+        $sectionField = $form->fields()->where('name', 'profile_section')->first();
+
+        $this->assertNotNull($inputField);
+        $inputConfig = is_array($inputField->config) ? $inputField->config : [];
+        $this->assertTrue(!empty($inputConfig['hide_label']));
+        $this->assertNotNull($sectionField);
+        $sectionConfig = is_array($sectionField->config) ? $sectionField->config : [];
+        $this->assertArrayNotHasKey('hide_label', $sectionConfig);
+    }
+
+    public function test_public_form_hides_label_when_hide_label_enabled_and_adds_aria_label(): void
+    {
+        $form = Form::create([
+            'name' => 'Accessibility Form',
+            'description' => 'A test form',
+            'is_active' => true,
+            'captcha_enabled' => false,
+            'captcha_type' => 'math',
+        ]);
+
+        $form->fields()->create([
+            'label' => 'Full Name',
+            'name' => 'full_name',
+            'type' => 'text',
+            'required' => false,
+            'order' => 0,
+            'config' => ['hide_label' => true],
+        ]);
+
+        $this->get(route('forms.show', $form))
+            ->assertOk()
+            ->assertDontSee('<label class="form-label fw-semibold" for="full_name">', false)
+            ->assertSee('name="full_name"', false)
+            ->assertSee('aria-label="Full Name"', false);
+    }
+
     public function test_public_form_renders_min_max_attributes_for_number_text_and_textarea_fields(): void
     {
         $form = Form::create([
