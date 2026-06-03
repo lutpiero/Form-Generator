@@ -28,6 +28,7 @@ class FormFieldController extends Controller
             'options' => 'nullable|string',
             'allow_custom_answer' => 'boolean',
             'other_label' => 'nullable|string|max:255',
+            'hide_label' => 'boolean',
             'config.min_value' => 'nullable|numeric',
             'config.max_value' => 'nullable|numeric|gte:config.min_value',
             'config.min_length' => 'nullable|integer|min:0',
@@ -87,6 +88,7 @@ class FormFieldController extends Controller
             'order' => 'nullable|integer',
             'allow_custom_answer' => 'boolean',
             'other_label' => 'nullable|string|max:255',
+            'hide_label' => 'boolean',
             'config.min_value' => 'nullable|numeric',
             'config.max_value' => 'nullable|numeric|gte:config.min_value',
             'config.min_length' => 'nullable|integer|min:0',
@@ -207,6 +209,10 @@ class FormFieldController extends Controller
             if ($this->hasConfigInput($maxLength)) {
                 $config['max_length'] = (int) $maxLength;
             }
+        }
+
+        if (!in_array($type, ['section', 'table', 'label'], true) && $request->boolean('hide_label', false)) {
+            $config['hide_label'] = true;
         }
 
         $visibilityConfig = $this->prepareVisibilityConfig($request, $form, $type, $currentField);
