@@ -5,12 +5,17 @@ namespace App\Http\Controllers;
 use App\Models\Form;
 use App\Models\FormField;
 use App\Models\FormSubmission;
+use App\Services\FormFileUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class FormController extends Controller
 {
+    public function __construct(
+        protected FormFileUploadService $fileUploadService
+    ) {}
+
     public function show(Form $form)
     {
         if (!$form->is_active) {
@@ -152,6 +157,12 @@ class FormController extends Controller
                         $messages["{$otherFieldName}.required"] = "Please enter a value for {$field->other_label}.";
                     }
                     break;
+                case 'file':
+                    $fieldRules = $this->fileUploadService->buildValidationRules($field);
+                    $messages["{$field->name}.max"] = "{$field->label} must not exceed ".FormField::formatFileSize($field->file_max_size_kb * 1024).'.';
+                    $messages["{$field->name}.mimes"] = 'This file type is not allowed.';
+                    $messages["{$field->name}.mimetypes"] = 'This file type is not allowed.';
+                    break;
             }
 
             $rules[$field->name] = $fieldRules;
@@ -219,15 +230,38 @@ class FormController extends Controller
                 $value = FormField::formatOtherResponse($otherValue);
             }
 
-            $data[$field->name] = $value;
+            if ($field->type !== 'file') {
+                $data[$field->name] = $value;
+            }
         }
 
-        FormSubmission::create([
+        $submission = FormSubmission::create([
             'form_id' => $form->id,
             'data' => $data,
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
+
+        foreach ($form->fields as $field) {
+            if ($field->type !== 'file' || !($visibleFieldIds[$field->id] ?? true)) {
+                continue;
+            }
+
+            if (!$request->hasFile($field->name)) {
+                continue;
+            }
+
+            $data[$field->name] = $this->fileUploadService->storeUploadedFile(
+                $request->file($field->name),
+                $form,
+                $submission,
+                $field
+            );
+        }
+
+        if (count($data) !== count($submission->data ?? [])) {
+            $submission->update(['data' => $data]);
+        }
 
         session()->forget(['captcha_answer', 'captcha_form']);
 

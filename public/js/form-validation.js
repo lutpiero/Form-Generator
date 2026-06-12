@@ -126,6 +126,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     .filter((value) => value !== '');
             }
 
+            if (type === 'file') {
+                const fileInput = group.querySelector('input[type="file"]');
+                return fileInput?.files?.length ? fileInput.files[0].name : '';
+            }
+
             const input = group.querySelector('input:not([type="hidden"]), textarea');
             return input ? (input.value ?? '') : '';
         };
@@ -165,7 +170,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const clearGroupValues = (group) => {
             group.querySelectorAll('input, select, textarea').forEach((control) => {
-                if (control.type === 'checkbox' || control.type === 'radio') {
+                if (control.type === 'file') {
+                    control.value = '';
+                } else if (control.type === 'checkbox' || control.type === 'radio') {
                     control.checked = false;
                 } else if (control.tagName === 'SELECT') {
                     control.selectedIndex = 0;
@@ -286,6 +293,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 return true;
             }
 
+            if (type === 'file') {
+                const fileInput = group.querySelector('input[type="file"]');
+                const selectedFile = fileInput?.files?.[0] ?? null;
+                const maxSizeKb = Number(fileInput?.dataset.maxSizeKb || 0);
+
+                if (required && !selectedFile) {
+                    setGroupValidity(group, false, getRequiredMessage(label));
+                    return false;
+                }
+
+                if (selectedFile && maxSizeKb > 0 && selectedFile.size > maxSizeKb * 1024) {
+                    setGroupValidity(group, false, `${label} must not exceed ${maxSizeKb} KB.`);
+                    return false;
+                }
+
+                setGroupValidity(group, true);
+                return true;
+            }
+
             const value = (primaryControl.value || '').trim();
 
             if (required && value === '') {
@@ -369,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fieldGroups.forEach((group) => {
             group.querySelectorAll('input, select, textarea').forEach((control) => {
-                const eventName = ['checkbox', 'radio'].includes(control.type) || control.tagName === 'SELECT'
+                const eventName = ['checkbox', 'radio', 'file'].includes(control.type) || control.tagName === 'SELECT'
                     ? 'change'
                     : 'blur';
 

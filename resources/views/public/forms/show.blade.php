@@ -26,7 +26,9 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('forms.submit', $form) }}" id="public-form" data-form-validation novalidate>
+    @php $hasFileFields = $form->fields->contains(fn ($f) => $f->type === 'file'); @endphp
+    <form method="POST" action="{{ route('forms.submit', $form) }}" id="public-form" data-form-validation novalidate
+          @if($hasFileFields) enctype="multipart/form-data" @endif>
         @csrf
         @php
             $fieldsById = $form->fields->keyBy('id');
@@ -330,6 +332,22 @@
                         @if($maxLength !== null) maxlength="{{ $maxLength }}" @endif
                         {{ $field->required ? 'required' : '' }}
                         {{ $fieldDisabledAttr }}>
+                    @break
+                @case('file')
+                    <input type="file" name="{{ $field->name }}" id="{{ $field->name }}"
+                        class="form-control @error($field->name) is-invalid @enderror"
+                        accept="{{ $field->file_accept }}"
+                        data-max-size-kb="{{ $field->file_max_size_kb }}"
+                        @if($hideLabel) aria-label="{{ $field->label }}" @endif
+                        {{ $field->required ? 'required' : '' }}
+                        {{ $fieldDisabledAttr }}>
+                    <div class="form-text">
+                        Allowed types: {{ strtoupper(implode(', ', $field->file_allowed_extensions)) }}.
+                        Max size: {{ \App\Models\FormField::formatFileSize($field->file_max_size_kb * 1024) }}.
+                        @if($field->placeholder)
+                            {{ $field->placeholder }}
+                        @endif
+                    </div>
                     @break
                 @default
                     <input type="{{ $field->type }}" name="{{ $field->name }}" id="{{ $field->name }}"

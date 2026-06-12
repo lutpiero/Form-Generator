@@ -16,6 +16,41 @@ class FormField extends Model
     public const OPTION_BASED_TYPES = ['dropdown', 'radio', 'checkbox', 'checkbox_dropdown', 'searchable_select'];
     public const TABLE_COLUMN_TYPES = ['text', 'email', 'phone', 'number', 'textarea', 'dropdown', 'radio', 'checkbox', 'checkbox_dropdown', 'label'];
     public const VISIBILITY_OPERATORS = ['equals', 'not_equals', 'is_empty', 'is_not_empty'];
+    public const DEFAULT_MAX_FILE_SIZE_KB = 5120;
+    public const MAX_FILE_SIZE_KB_LIMIT = 10240;
+    public const BLOCKED_FILE_EXTENSIONS = [
+        'php', 'phtml', 'phar', 'php3', 'php4', 'php5', 'php7', 'php8',
+        'exe', 'bat', 'cmd', 'com', 'sh', 'bash', 'html', 'htm', 'svg',
+        'js', 'jar', 'msi', 'vbs', 'ps1', 'asp', 'aspx', 'jsp',
+    ];
+    public const ALLOWED_FILE_EXTENSIONS = [
+        'pdf' => ['application/pdf'],
+        'jpg' => ['image/jpeg'],
+        'jpeg' => ['image/jpeg'],
+        'png' => ['image/png'],
+        'gif' => ['image/gif'],
+        'webp' => ['image/webp'],
+        'doc' => ['application/msword'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'xls' => ['application/vnd.ms-excel'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'txt' => ['text/plain'],
+        'csv' => ['text/csv', 'text/plain', 'application/csv'],
+    ];
+    public const ALLOWED_FILE_EXTENSION_LABELS = [
+        'pdf' => 'PDF (.pdf)',
+        'jpg' => 'JPEG (.jpg)',
+        'jpeg' => 'JPEG (.jpeg)',
+        'png' => 'PNG (.png)',
+        'gif' => 'GIF (.gif)',
+        'webp' => 'WebP (.webp)',
+        'doc' => 'Word (.doc)',
+        'docx' => 'Word (.docx)',
+        'xls' => 'Excel (.xls)',
+        'xlsx' => 'Excel (.xlsx)',
+        'txt' => 'Plain text (.txt)',
+        'csv' => 'CSV (.csv)',
+    ];
 
     protected $fillable = [
         'form_id',
@@ -123,6 +158,50 @@ class FormField extends Model
     {
         $value = is_array($this->config) ? ($this->config['max_rows'] ?? 0) : 0;
         return max(0, (int) $value);
+    }
+
+    public function getFileMaxSizeKbAttribute(): int
+    {
+        $value = is_array($this->config) ? ($this->config['max_size_kb'] ?? self::DEFAULT_MAX_FILE_SIZE_KB) : self::DEFAULT_MAX_FILE_SIZE_KB;
+
+        return min(max(1, (int) $value), self::MAX_FILE_SIZE_KB_LIMIT);
+    }
+
+    public function getFileAllowedExtensionsAttribute(): array
+    {
+        $extensions = is_array($this->config) ? ($this->config['allowed_extensions'] ?? []) : [];
+
+        if (!is_array($extensions)) {
+            return ['pdf'];
+        }
+
+        $normalized = array_values(array_unique(array_filter(array_map(
+            fn ($extension) => strtolower(trim((string) $extension)),
+            $extensions
+        ), fn ($extension) => isset(self::ALLOWED_FILE_EXTENSIONS[$extension])
+            && !in_array($extension, self::BLOCKED_FILE_EXTENSIONS, true))));
+
+        return $normalized === [] ? ['pdf'] : $normalized;
+    }
+
+    public function getFileAllowedMimeTypesAttribute(): array
+    {
+        $mimeTypes = [];
+
+        foreach ($this->file_allowed_extensions as $extension) {
+            foreach (self::ALLOWED_FILE_EXTENSIONS[$extension] as $mimeType) {
+                $mimeTypes[$mimeType] = true;
+            }
+        }
+
+        return array_keys($mimeTypes);
+    }
+
+    public function getFileAcceptAttribute(): string
+    {
+        return collect($this->file_allowed_extensions)
+            ->map(fn ($extension) => '.'.$extension)
+            ->implode(',');
     }
 
     public function getOtherInputNameAttribute(): string
@@ -273,6 +352,10 @@ class FormField extends Model
             return $this->formatTableSubmissionValue($value);
         }
 
+        if ($this->type === 'file') {
+            return self::formatFileSubmissionValue($value);
+        }
+
         if (is_array($value)) {
             return collect($value)
                 ->map(fn ($item) => self::displaySubmissionValue($item, $this->other_label))
@@ -356,5 +439,31 @@ class FormField extends Model
         $normalized = trim((string) $label);
 
         return $normalized !== '' ? $normalized : self::DEFAULT_OTHER_LABEL;
+    }
+
+    public static function formatFileSubmissionValue(mixed $value): string
+    {
+        if (!is_array($value) || empty($value['original_name'])) {
+            return '—';
+        }
+
+        $size = isset($value['size']) && is_numeric($value['size'])
+            ? ' ('.self::formatFileSize((int) $value['size']).')'
+            : '';
+
+        return (string) $value['original_name'].$size;
+    }
+
+    public static function formatFileSize(int $bytes): string
+    {
+        if ($bytes >= 1048576) {
+            return round($bytes / 1048576, 1).' MB';
+        }
+
+        if ($bytes >= 1024) {
+            return round($bytes / 1024, 1).' KB';
+        }
+
+        return $bytes.' B';
     }
 }

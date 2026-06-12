@@ -32,6 +32,13 @@
                                 @php $val = $submission->data[$field->name] ?? null; @endphp
                                 @if($field->type === 'table')
                                     @include('admin.submissions.partials.table-value', ['field' => $field, 'value' => $val])
+                                @elseif($field->type === 'file' && is_array($val) && !empty($val['path']))
+                                    <a href="{{ route('admin.forms.submissions.files.download', [$form, $submission, $field]) }}" class="text-decoration-none">
+                                        <i class="bi bi-download"></i> {{ $val['original_name'] ?? 'Download file' }}
+                                    </a>
+                                    @if(!empty($val['size']))
+                                        <span class="text-muted small">({{ \App\Models\FormField::formatFileSize((int) $val['size']) }})</span>
+                                    @endif
                                 @else
                                     {{ $field->formatSubmissionValue($val) }}
                                 @endif

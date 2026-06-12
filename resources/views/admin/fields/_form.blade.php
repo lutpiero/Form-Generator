@@ -15,6 +15,9 @@
     $maxValue = old('config.max_value', $fieldConfig['max_value'] ?? '');
     $minLength = old('config.min_length', $fieldConfig['min_length'] ?? '');
     $maxLength = old('config.max_length', $fieldConfig['max_length'] ?? '');
+    $fileMaxSizeKb = old('config.max_size_kb', $fieldConfig['max_size_kb'] ?? \App\Models\FormField::DEFAULT_MAX_FILE_SIZE_KB);
+    $fileAllowedExtensions = old('config.allowed_extensions', $fieldConfig['allowed_extensions'] ?? ['pdf']);
+    $fileAllowedExtensions = is_array($fileAllowedExtensions) ? $fileAllowedExtensions : ['pdf'];
     $hideLabel = old('hide_label', !empty($fieldConfig['hide_label']));
     $emptyCheckOperators = ['is_empty', 'is_not_empty'];
 @endphp
@@ -46,6 +49,7 @@
             'radio' => 'Radio Buttons',
             'checkbox' => 'Checkboxes',
             'checkbox_dropdown' => 'Checkbox Dropdown',
+            'file' => 'File Upload',
             'table' => 'Table / Repeatable Group',
             'section' => 'Section Divider',
             'label' => 'Label',
@@ -371,6 +375,37 @@
         </div>
     </div>
 
+    <div id="fileConfigGroup" class="border rounded p-3 bg-light-subtle mb-3" style="{{ $selectedType === 'file' ? '' : 'display:none' }}">
+        <h6 class="mb-3">File Upload Settings</h6>
+        <div class="mb-3">
+            <label class="form-label fw-semibold" for="config_max_size_kb">Max File Size (KB)</label>
+            <input type="number" min="1" max="{{ \App\Models\FormField::MAX_FILE_SIZE_KB_LIMIT }}"
+                   name="config[max_size_kb]" id="config_max_size_kb"
+                   class="form-control @error('config.max_size_kb') is-invalid @enderror"
+                   value="{{ $fileMaxSizeKb }}">
+            @error('config.max_size_kb')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <div class="form-text">Maximum upload size per file. Default is {{ \App\Models\FormField::DEFAULT_MAX_FILE_SIZE_KB }} KB (5 MB).</div>
+        </div>
+        <div class="mb-0">
+            <label class="form-label fw-semibold">Allowed File Types <span class="text-danger">*</span></label>
+            @error('config.allowed_extensions')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+            <div class="row g-2">
+                @foreach(\App\Models\FormField::ALLOWED_FILE_EXTENSION_LABELS as $extension => $extensionLabel)
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   name="config[allowed_extensions][]" value="{{ $extension }}"
+                                   id="allowed_extension_{{ $extension }}"
+                                   {{ in_array($extension, $fileAllowedExtensions, true) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="allowed_extension_{{ $extension }}">{{ $extensionLabel }}</label>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+            <div class="form-text">Only selected types can be uploaded. Executable and script file types are always blocked.</div>
+        </div>
+    </div>
+
     <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" name="required" id="required" value="1"
             {{ old('required', isset($field) && $field->required ? '1' : '0') == '1' ? 'checked' : '' }}>
@@ -449,6 +484,7 @@
     var labelTextarea = document.getElementById('labelTextarea');
     var numberValueRangeGroup = document.getElementById('numberValueRangeGroup');
     var lengthRangeGroup = document.getElementById('lengthRangeGroup');
+    var fileConfigGroup = document.getElementById('fileConfigGroup');
     var columnsContainer = document.getElementById('tableColumnsContainer');
     var addTableColumnButton = document.getElementById('addTableColumn');
     var tableColumnTemplate = document.getElementById('tableColumnTemplate');
@@ -611,6 +647,7 @@
         var isLabel = type === 'label';
         var supportsNumberRange = type === 'number';
         var supportsLengthRange = ['number', 'text', 'textarea'].includes(type);
+        var isFile = type === 'file';
 
         optionsGroup.style.display = showOptions ? '' : 'none';
         customAnswerGroup.style.display = supportsCustomAnswer ? '' : 'none';
@@ -627,6 +664,9 @@
         }
         if (lengthRangeGroup) {
             lengthRangeGroup.style.display = supportsLengthRange ? '' : 'none';
+        }
+        if (fileConfigGroup) {
+            fileConfigGroup.style.display = isFile ? '' : 'none';
         }
         if (labelInput && labelTextarea) {
             if (isLabel) {

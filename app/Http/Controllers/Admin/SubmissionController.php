@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Form;
 use App\Models\FormField;
 use App\Models\FormSubmission;
+use App\Services\FormFileUploadService;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -14,6 +15,10 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class SubmissionController extends Controller
 {
+    public function __construct(
+        protected FormFileUploadService $fileUploadService
+    ) {}
+
     public function index(Form $form)
     {
         $submissions = $form->submissions()->latest()->paginate(20);
@@ -28,10 +33,21 @@ class SubmissionController extends Controller
 
     public function destroy(Form $form, FormSubmission $submission)
     {
+        $this->fileUploadService->deleteSubmissionFiles($submission);
         $submission->delete();
 
         return redirect()->route('admin.forms.submissions.index', $form)
             ->with('success', 'Submission deleted.');
+    }
+
+    public function downloadFile(Form $form, FormSubmission $submission, FormField $field)
+    {
+        abort_unless($submission->form_id === $form->id, 404);
+        abort_unless($field->form_id === $form->id && $field->type === 'file', 404);
+
+        $fileData = $submission->data[$field->name] ?? null;
+
+        return $this->fileUploadService->downloadSubmissionFile($form, $field, $fileData);
     }
 
     public function export(Form $form)

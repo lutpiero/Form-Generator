@@ -4,12 +4,17 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Form;
+use App\Services\FormFileUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class FormController extends Controller
 {
+    public function __construct(
+        protected FormFileUploadService $fileUploadService
+    ) {}
+
     public function index()
     {
         $forms = Form::withCount('submissions')->latest()->paginate(10);
@@ -114,6 +119,8 @@ class FormController extends Controller
         if ($form->header_image) {
             Storage::disk('public')->delete($form->header_image);
         }
+
+        $this->fileUploadService->deleteFormUploads($form);
         $form->delete();
         return redirect()->route('admin.forms.index')
             ->with('success', 'Form deleted successfully.');

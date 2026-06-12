@@ -21,7 +21,7 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,searchable_select,table,section,label',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,searchable_select,table,section,label,file',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
@@ -35,6 +35,9 @@ class FormFieldController extends Controller
             'config.max_length' => 'nullable|integer|min:0|gte:config.min_length',
             'config.auto_number' => 'sometimes|boolean',
             'config.max_rows' => 'nullable|integer|min:0',
+            'config.max_size_kb' => 'nullable|integer|min:1|max:'.FormField::MAX_FILE_SIZE_KB_LIMIT,
+            'config.allowed_extensions' => 'nullable|array|min:1',
+            'config.allowed_extensions.*' => 'string|in:'.implode(',', array_keys(FormField::ALLOWED_FILE_EXTENSIONS)),
             'config.col_width' => 'nullable|integer|in:3,4,6,12',
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
@@ -80,7 +83,7 @@ class FormFieldController extends Controller
     {
         $validated = $request->validate([
             'label' => 'required|string|max:255',
-            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,searchable_select,table,section,label',
+            'type' => 'required|in:text,email,phone,number,textarea,dropdown,radio,checkbox,checkbox_dropdown,searchable_select,table,section,label,file',
             'required' => 'boolean',
             'placeholder' => 'nullable|string|max:255',
             'default_value' => 'nullable|string|max:255',
@@ -95,6 +98,9 @@ class FormFieldController extends Controller
             'config.max_length' => 'nullable|integer|min:0|gte:config.min_length',
             'config.auto_number' => 'sometimes|boolean',
             'config.max_rows' => 'nullable|integer|min:0',
+            'config.max_size_kb' => 'nullable|integer|min:1|max:'.FormField::MAX_FILE_SIZE_KB_LIMIT,
+            'config.allowed_extensions' => 'nullable|array|min:1',
+            'config.allowed_extensions.*' => 'string|in:'.implode(',', array_keys(FormField::ALLOWED_FILE_EXTENSIONS)),
             'config.col_width' => 'nullable|integer|in:3,4,6,12',
             'config.columns' => 'nullable|array',
             'config.columns.*.label' => 'nullable|string|max:255',
@@ -209,6 +215,25 @@ class FormFieldController extends Controller
             if ($this->hasConfigInput($maxLength)) {
                 $config['max_length'] = (int) $maxLength;
             }
+        }
+
+        if ($type === 'file') {
+            $maxSizeKb = (int) $request->input('config.max_size_kb', FormField::DEFAULT_MAX_FILE_SIZE_KB);
+            $config['max_size_kb'] = min(max(1, $maxSizeKb), FormField::MAX_FILE_SIZE_KB_LIMIT);
+
+            $allowedExtensions = array_values(array_unique(array_filter(array_map(
+                fn ($extension) => strtolower(trim((string) $extension)),
+                (array) $request->input('config.allowed_extensions', [])
+            ), fn ($extension) => isset(FormField::ALLOWED_FILE_EXTENSIONS[$extension])
+                && !in_array($extension, FormField::BLOCKED_FILE_EXTENSIONS, true))));
+
+            if ($allowedExtensions === []) {
+                throw ValidationException::withMessages([
+                    'config.allowed_extensions' => 'Please select at least one allowed file type.',
+                ]);
+            }
+
+            $config['allowed_extensions'] = $allowedExtensions;
         }
 
         if (!in_array($type, ['section', 'table', 'label'], true) && $request->boolean('hide_label', false)) {
