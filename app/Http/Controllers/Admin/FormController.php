@@ -43,6 +43,9 @@ class FormController extends Controller
             'captcha_type' => 'required|in:math,honeypot',
             'success_message' => 'nullable|string',
             'header_image' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:2048',
+            'max_submissions' => 'nullable|integer|min:1',
+            'submission_start_at' => 'nullable|date',
+            'submission_end_at' => 'nullable|date|after_or_equal:submission_start_at',
         ]);
 
         $validated['is_active'] = $request->boolean('is_active', true);
@@ -87,6 +90,9 @@ class FormController extends Controller
             'success_message' => 'nullable|string',
             'header_image' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:2048',
             'remove_header_image' => 'nullable|boolean',
+            'max_submissions' => 'nullable|integer|min:1',
+            'submission_start_at' => 'nullable|date',
+            'submission_end_at' => 'nullable|date|after_or_equal:submission_start_at',
         ]);
 
         $validated['is_active'] = $request->boolean('is_active', false);
