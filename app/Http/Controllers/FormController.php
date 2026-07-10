@@ -22,21 +22,27 @@ class FormController extends Controller
             abort(404);
         }
 
+        $submissionBlocked = $form->submissionBlockedReason();
+
         $captcha = null;
-        if ($form->captcha_enabled && $form->captcha_type === 'math') {
+        if (!$submissionBlocked && $form->captcha_enabled && $form->captcha_type === 'math') {
             $a = rand(1, 10);
             $b = rand(1, 10);
             session(['captcha_answer' => $a + $b, 'captcha_form' => $form->id]);
             $captcha = ['question' => "$a + $b = ?", 'answer' => $a + $b];
         }
 
-        return view('public.forms.show', compact('form', 'captcha'));
+        return view('public.forms.show', compact('form', 'captcha', 'submissionBlocked'));
     }
 
     public function submit(Request $request, Form $form)
     {
         if (!$form->is_active) {
             abort(404);
+        }
+
+        if ($blockedReason = $form->submissionBlockedReason()) {
+            return back()->withErrors(['_submission_limit' => $blockedReason]);
         }
 
         if ($form->captcha_enabled && $form->captcha_type === 'honeypot') {

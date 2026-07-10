@@ -134,3 +134,35 @@
         </div>
     </div>
 </div>
+
+<hr class="my-4">
+<h6 class="fw-semibold mb-3"><i class="bi bi-sliders"></i> Submission Limits</h6>
+
+<div class="mb-3">
+    <label class="form-label fw-semibold" for="max_submissions">Max Submissions</label>
+    <input type="number" id="max_submissions" name="max_submissions" min="1"
+           class="form-control @error('max_submissions') is-invalid @enderror"
+           value="{{ old('max_submissions', $form->max_submissions ?? '') }}"
+           placeholder="Leave empty for no limit">
+    <div class="form-text">Positive integer. Leave empty to allow unlimited submissions.</div>
+    @error('max_submissions')<div class="invalid-feedback">{{ $message }}</div>@enderror
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label class="form-label fw-semibold" for="submission_start_at">Submissions Open At</label>
+        <input type="datetime-local" id="submission_start_at" name="submission_start_at"
+               class="form-control @error('submission_start_at') is-invalid @enderror"
+               value="{{ old('submission_start_at', isset($form) && $form->submission_start_at ? $form->submission_start_at->format('Y-m-d\TH:i') : '') }}">
+        <div class="form-text">Leave empty to allow submissions immediately.</div>
+        @error('submission_start_at')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+    <div class="col-md-6">
+        <label class="form-label fw-semibold" for="submission_end_at">Submissions Close At</label>
+        <input type="datetime-local" id="submission_end_at" name="submission_end_at"
+               class="form-control @error('submission_end_at') is-invalid @enderror"
+               value="{{ old('submission_end_at', isset($form) && $form->submission_end_at ? $form->submission_end_at->format('Y-m-d\TH:i') : '') }}">
+        <div class="form-text">Leave empty to keep accepting submissions indefinitely.</div>
+        @error('submission_end_at')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+</div>

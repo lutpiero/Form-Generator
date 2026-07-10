@@ -19,11 +19,17 @@ class Form extends Model
         'captcha_type',
         'success_message',
         'header_image',
+        'max_submissions',
+        'submission_start_at',
+        'submission_end_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'captcha_enabled' => 'boolean',
+        'max_submissions' => 'integer',
+        'submission_start_at' => 'datetime',
+        'submission_end_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -50,5 +56,31 @@ class Form extends Model
     public function getRouteKeyName()
     {
         return 'slug';
+    }
+
+    /**
+     * Check whether the form can currently accept a new submission.
+     * Returns null when submissions are allowed, or a string message when blocked.
+     */
+    public function submissionBlockedReason(): ?string
+    {
+        $now = now();
+
+        if ($this->submission_start_at && $now->lt($this->submission_start_at)) {
+            return 'This form is not yet open for submissions.';
+        }
+
+        if ($this->submission_end_at && $now->gt($this->submission_end_at)) {
+            return 'This form is no longer accepting submissions.';
+        }
+
+        if ($this->max_submissions !== null) {
+            $count = $this->submissions_count ?? $this->submissions()->count();
+            if ($count >= $this->max_submissions) {
+                return 'This form has reached its maximum number of submissions.';
+            }
+        }
+
+        return null;
     }
 }

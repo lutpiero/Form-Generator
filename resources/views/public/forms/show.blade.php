@@ -16,6 +16,12 @@
         <p class="text-muted mb-4">{{ $form->description }}</p>
     @endif
 
+    @if($submissionBlocked)
+        <div class="alert alert-warning" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ $submissionBlocked }}
+        </div>
+    @else
+
     @if($errors->any())
         <div class="alert alert-danger">
             <ul class="mb-0">
@@ -396,6 +402,7 @@
             </button>
         </div>
     </form>
+    @endif
 </div>
 <script src="{{ asset('js/form-validation.js') }}" defer></script>
 @endsection
