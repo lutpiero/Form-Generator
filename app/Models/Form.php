@@ -74,8 +74,11 @@ class Form extends Model
             return 'This form is no longer accepting submissions.';
         }
 
-        if ($this->max_submissions !== null && $this->submissions()->count() >= $this->max_submissions) {
-            return 'This form has reached its maximum number of submissions.';
+        if ($this->max_submissions !== null) {
+            $count = $this->submissions_count ?? $this->submissions()->count();
+            if ($count >= $this->max_submissions) {
+                return 'This form has reached its maximum number of submissions.';
+            }
         }
 
         return null;
